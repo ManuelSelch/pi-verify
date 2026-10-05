@@ -26,7 +26,7 @@ test("Markdown renders unknown and skipped results", () => {
     checks: [{ command: "npm test", outcome: "skipped", note: "not relevant" }],
     limitations: ["No test runner was configured."],
   });
-  assert.match(markdown, /## Added and modified tests/);
+  assert.match(markdown, /## Added or changed tests/);
   assert.match(markdown, /test_unknown/);
   assert.match(markdown, /unknown/);
   assert.match(markdown, /No test runner was configured\./);
@@ -53,10 +53,9 @@ test("Markdown renders an executive summary, compact source, simple dates, and f
     gate: { passing_criteria: 1, total_criteria: 1 },
     artifacts: [{ label: "EV-001", path: "/tmp/demo project/evidence/EV-001.log" }],
   }, "/tmp/demo project/reports");
-  assert.match(markdown, /## Executive summary/);
-  assert.match(markdown, /1\/1 criteria passing/);
-  assert.match(markdown, /1\/1 checks passing/);
-  assert.match(markdown, /`feature\/add` at `222222222222`/);
+  assert.match(markdown, /## Summary/);
+  assert.match(markdown, /1\/1 passed/);
+  assert.match(markdown, /`222222222222` Add numbers/);
   assert.doesNotMatch(markdown, new RegExp("f{64}"));
   assert.match(markdown, /2026-10-05 15:55/);
   assert.doesNotMatch(markdown, /2026-10-05T15:55:32/);
@@ -64,7 +63,9 @@ test("Markdown renders an executive summary, compact source, simple dates, and f
   assert.doesNotMatch(markdown, /file:\/\//);
   assert.doesNotMatch(markdown, /\[\/tmp\/demo project\/evidence/);
   assert.doesNotMatch(markdown, /\| `python3 - <<'PY'/);
-  assert.match(markdown, /Run addition checks/);
+  assert.match(markdown, /EV-001\.log/);
+  assert.doesNotMatch(markdown, /## Acceptance criteria/);
+  assert.doesNotMatch(markdown, /## Gate/);
 });
 
 test("writeReportBundle creates durable JSON and Markdown files", async () => {

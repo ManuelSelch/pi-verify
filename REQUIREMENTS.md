@@ -11,6 +11,7 @@ Status: backend, report renderer, `/verify`, and four verification lifecycle too
 - `verify_finish` now derives Git source metadata, rejects untracked files, and lists commits since an automatically detected baseline. Worktree branch creation reflogs are preferred, then the primary-worktree merge-base; initial commits use the empty tree.
 - Markdown now has an executive summary, compact source state, concise checks linked to full evidence logs, short relative artifact links, and simplified commit dates. Exact commands and absolute artifact paths remain in JSON/evidence instead of Markdown tables.
 - After `verify_finish`, the extension emits the generated report once as a displayed `pi-verify-report` custom message at `agent_end`, without triggering another model turn.
+- Added `verify_attach` for durable screenshots, logs, videos, Playwright traces, and other file artifacts; the concise Markdown report lists them while JSON preserves metadata.
 - Later report freshness rechecking, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.
 
 ## Goal

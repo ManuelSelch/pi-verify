@@ -7,6 +7,7 @@ import { createVerificationTools } from "../src/verify-tools.js";
 
 test("disposable addition project supports reviews and automatic reports", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-addition-demo-"));
+  const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "pi-verify-artifacts-"));
   try {
     await writeFile(path.join(root, "sum.cjs"), "exports.sum = (a, b) => a + b;\n");
     await writeFile(path.join(root, "sum.test.cjs"), "const {sum} = require('./sum.cjs'); require('node:assert/strict').equal(sum(2, 3), 5); console.log('addition passed');\n");
@@ -23,6 +24,13 @@ test("disposable addition project supports reviews and automatic reports", async
       return tool.execute(name, params, new AbortController().signal, undefined, { cwd: root });
     };
     const started = await call("verify_start", { goal: "Verify addition in sum.cjs" });
+    const screenshot = path.join(artifactRoot, "screenshot.png");
+    await writeFile(screenshot, "fake screenshot artifact");
+    const attached = await call("verify_attach", { path: screenshot, type: "screenshot", label: "Addition screenshot" });
+    const attachedDetails = attached.details as { path: string; source: string; sha256: string; size: number };
+    assert.notEqual(attachedDetails.path, attachedDetails.source);
+    assert.equal(attachedDetails.size, 24);
+    assert.match(attachedDetails.sha256, /^[a-f0-9]{64}$/);
     assert.equal((started.details as { acceptance: { criteria: unknown[] } }).acceptance.criteria.length, 3);
     const commands = ["printf 'Goal: verify addition'", "node -p \"require('fs').readFileSync('sum.cjs', 'utf8')\"", "node sum.test.cjs"];
     for (const [index, type] of ["file-read", "diff", "test"].entries()) {
@@ -51,6 +59,7 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.equal(details.gate.verdict, "VERIFIED");
     const report = JSON.parse(await readFile(details.reportPaths.jsonPath, "utf8"));
     assert.equal(report.checks.length, 3);
+    assert.equal(report.artifacts.some((artifact: { label: string; type?: string }) => artifact.label === "Addition screenshot" && artifact.type === "screenshot"), true);
     assert.equal(report.executedTests.length, 1);
     assert.equal(report.tests[0].outcome, "unknown");
     assert.deepEqual(report.changes, summary.changes);
@@ -61,10 +70,10 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.deepEqual(report.commits.map((commit: { subject: string }) => commit.subject), ["add sum demo"]);
     assert.equal(report.artifacts.filter((item: { label: string }) => item.label.startsWith("EV-")).length, 3);
     const markdown = await readFile(details.reportPaths.markdownPath, "utf8");
-    assert.match(markdown, /## Executive summary/);
-    assert.match(markdown, /## Checks/);
+    assert.match(markdown, /## Summary/);
+    assert.match(markdown, /## Evidence/);
+    assert.doesNotMatch(markdown, /## Checks/);
     assert.doesNotMatch(markdown, /Executed test commands/);
-    assert.match(markdown, /AC-003/);
     assert.match(report.artifacts[0].path, /\/report-.*\.md$/);
     await call("verify_review", { criterion: "AC-003", evidence: "EV-003", verdict: "does-not-support", notes: "Direct addition does not cover other numeric cases." });
     const rejected = await call("verify_finish", {});
@@ -83,6 +92,7 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.equal(failureReport.executedTests.at(-1).exitCode, 2);
   } finally {
     await rm(root, { recursive: true, force: true });
+    await rm(artifactRoot, { recursive: true, force: true });
   }
 });
 

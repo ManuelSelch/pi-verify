@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import path from "node:path";
-import { readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { AgentAuditsRun, type GateResult } from "./agent-audits.js";
 import { writeReportBundle, type VerificationReport } from "./report.js";
 import { collectGitScope } from "./git-scope.js";
@@ -28,11 +28,14 @@ function projectKey(projectDir: string): string {
   return `${name}-${suffix}`;
 }
 
+export type VerificationArtifact = { label: string; path: string; type: string; description?: string; sha256: string; size: number };
+
 export type VerificationState = {
   goal: string;
   projectDir: string;
   auditDir: string;
   audit: AgentAuditsRun;
+  attachments: VerificationArtifact[];
 };
 
 export type PendingVerificationReport = {
@@ -73,7 +76,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
       await audit.init();
       await audit.plan(params.goal);
       const acceptance = JSON.parse(await readFile(path.join(auditDir, ".agent-audits", "acceptance.json"), "utf8"));
-      state.current = { goal: params.goal, projectDir, auditDir, audit };
+      state.current = { goal: params.goal, projectDir, auditDir, audit, attachments: [] };
       return { content: text({ auditDir, acceptance }), details: { auditDir, acceptance } };
     },
   };
@@ -93,6 +96,29 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
       const output = await readFile(artifactPath, "utf8");
       const result = { evidence, command: params.command, exitCode: entry.exit_code, artifactPath, output: output.slice(0, 16000), truncated: output.length > 16000, auditDir: current.auditDir };
       return { content: text(result), details: result };
+    },
+  };
+
+  const attach: Tool = {
+    name: "verify_attach",
+    label: "Attach verification artifact",
+    description: "Copy a screenshot, log, video, Playwright trace, or other existing file into the durable verification bundle.",
+    parameters: schema({ path: { type: "string", description: "Existing artifact path" }, type: { type: "string", enum: ["screenshot", "log", "video", "playwright-trace", "file"] }, label: { type: "string" }, description: { type: "string" } }, ["path", "type", "label"]),
+    async execute(_id, params) {
+      const current = state.current;
+      if (!current) throw new Error("No verification run. Call verify_start first.");
+      const source = path.resolve(current.projectDir, params.path);
+      const sourceStat = await stat(source);
+      if (!sourceStat.isFile()) throw new Error(`Artifact is not a file: ${source}`);
+      const bytes = await readFile(source);
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      const filename = `${randomUUID()}-${path.basename(source)}`;
+      const destination = path.join(current.auditDir, "artifacts", filename);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await copyFile(source, destination);
+      const artifact = { label: params.label, path: destination, type: params.type, description: params.description, sha256: digest, size: sourceStat.size };
+      current.attachments.push(artifact);
+      return { content: text({ ...artifact, source }), details: { ...artifact, source, auditDir: current.auditDir } };
     },
   };
 
@@ -177,7 +203,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
         criteria: acceptance.criteria,
         evidence: index.evidence,
         gate,
-        artifacts: [{ label: "Agent Audits report", path: agentReport }, ...["acceptance.json", "evidence/index.json", "reviews.json"].map((file) => ({ label: file, path: path.join(current.auditDir, ".agent-audits", file) })), ...(index.evidence as Evidence[]).map((item) => ({ label: item.id, path: path.resolve(current.auditDir, item.artifact_path) }))],
+        artifacts: [{ label: "Agent Audits report", path: agentReport }, ...["acceptance.json", "evidence/index.json", "reviews.json"].map((file) => ({ label: file, path: path.join(current.auditDir, ".agent-audits", file) })), ...(index.evidence as Evidence[]).map((item) => ({ label: item.id, path: path.resolve(current.auditDir, item.artifact_path) })), ...current.attachments],
         skipped: params.skipped ?? [],
         limitations: ["Command execution is unrestricted in this demo.", "Change summaries and test inventory are agent-authored.", ...sourceIssues, ...params.limitations ?? []],
         review: { kind: "self-review", source: "Agent Audits", allowed: gate.allowed, processExitCode: gate.process_exit_code, records: reviews },
@@ -189,7 +215,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
     },
   };
 
-  return [start, addEvidence, review, finish];
+  return [start, addEvidence, attach, review, finish];
 }
 
 export function registerVerificationTools(pi: { registerTool: (tool: Tool) => void }, getCwd: () => string, state: VerificationLifecycleState): void {
