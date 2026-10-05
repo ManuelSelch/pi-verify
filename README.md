@@ -42,11 +42,10 @@ Test entries are supplied by the caller in this slice. The renderer does not inv
 
 After `verify_finish` writes the report, the extension stores it as a pending completed report. At `agent_end`, it emits the report once as a displayed `pi-verify-report` custom message with `{ triggerTurn: false }`, so it appears in Pi/pi-chat without starting another model turn. Reports are not emitted for runs that stop before `verify_finish`, and repeated lifecycle events do not duplicate the message.
 
-The package manifest exposes the compiled extension through the Pi package field:
+The package manifest exposes the TypeScript extension source through the Pi package field:
 
 ```bash
 npm install
-npm run build
 pi -e ./
 ```
 
@@ -55,6 +54,8 @@ For a permanent local installation, use Pi's package command from the parent dir
 ```bash
 pi install ./pi-verify
 ```
+
+Pi loads `src/extension.ts` directly through its TypeScript loader. A build is only required for this repository's compiled tests, not for reloading the installed package.
 
 ## Verification tools
 

@@ -25,6 +25,11 @@
     }
   },
   "pi": {
-    "extensions": ["./dist/src/extension.js"]
-  }
+    "extensions": ["./src/extension.ts"]
+  },
+  "files": [
+    "src",
+    "README.md",
+    "REQUIREMENTS.md"
+  ]
 }
