@@ -43,9 +43,9 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
     name: "verify_start",
     label: "Start verification",
     description: "Create an isolated durable Agent Audits run and generate task-specific acceptance criteria.",
-    parameters: schema({ goal: { type: "string", description: "The task being verified" }, projectDir: { type: "string", description: "Optional source project directory" } }, ["goal"]),
-    async execute(_id, params) {
-      const projectDir = path.resolve(params.projectDir || getCwd());
+    parameters: schema({ goal: { type: "string", description: "The task being verified" } }, ["goal"]),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const projectDir = path.resolve(ctx.cwd || getCwd());
       const runId = `${new Date().toISOString().replaceAll(/[-:.TZ]/g, "").slice(0, 14)}-${process.pid}`;
       const auditDir = path.join(homedir(), ".pi", "agent", "audits", projectKey(projectDir), runId);
       const audit = new AgentAuditsRun(projectDir, auditDir);

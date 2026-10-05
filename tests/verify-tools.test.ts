@@ -13,7 +13,7 @@ test("verification tools wrap an Agent Audits lifecycle", async () => {
     const start = tools.find((tool) => tool.name === "verify_start")!;
     const evidenceTool = tools.find((tool) => tool.name === "verify_add_evidence")!;
     const finish = tools.find((tool) => tool.name === "verify_finish")!;
-    const started = await start.execute("1", { goal: "Verify a demo command", projectDir: root }, new AbortController().signal, undefined, { cwd: root });
+    const started = await start.execute("1", { goal: "Verify a demo command" }, new AbortController().signal, undefined, { cwd: root });
     const startedDetails = started.details as { auditDir: string; acceptance: { criteria: unknown[] } };
     assert.equal(startedDetails.acceptance.criteria.length, 3);
     const evidence = await evidenceTool.execute("2", { criterion: "AC-001", type: "test", command: "printf demo", summary: "demo output" }, new AbortController().signal, undefined, { cwd: root });
