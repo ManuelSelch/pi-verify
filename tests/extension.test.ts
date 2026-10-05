@@ -12,6 +12,8 @@ test("verify prompt is composable and task-specific", () => {
   assert.match(prompt, /tests executed/);
   assert.match(prompt, /Do not manually write or overwrite/);
   assert.match(prompt, /required evidence types/);
+  assert.match(prompt, /automatically collects Git/);
+  assert.match(prompt, /Never pass or manually calculate source metadata/);
 });
 
 test("verify prompt allows the task to be inferred", () => {

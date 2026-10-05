@@ -21,10 +21,13 @@ export type CheckEntry = {
   note?: string;
 };
 
+export type CommitEntry = { sha: string; subject: string; author: string; authoredAt: string };
+
 export type VerificationReport = {
   goal: string;
   verdict: string;
-  source?: Record<string, string>;
+  source?: Record<string, unknown>;
+  commits?: CommitEntry[];
   changes?: Array<{ file: string; summary: string }>;
   tests?: TestEntry[];
   checks?: CheckEntry[];
@@ -54,9 +57,13 @@ export async function writeReportBundle(directory: string, report: VerificationR
 export function reportMarkdown(report: VerificationReport): string {
   const lines = ["# Verification Report", "", `**Verdict:** \`${report.verdict}\``, `**Goal:** ${report.goal}`, "", "## Source", ""];
   const source = report.source ?? {};
-  lines.push(...(Object.keys(source).length ? Object.entries(source).map(([key, value]) => `- **${key}:** ${value}`) : ["- Not recorded"]));
+  lines.push(...(Object.keys(source).length ? Object.entries(source).map(([key, value]) => `- **${key}:** ${Array.isArray(value) ? value.join(", ") || "none" : String(value)}`) : ["- Not recorded"]));
 
-  lines.push("", "## Changes", "");
+  lines.push("", "## Created commits", "");
+  const commits = report.commits ?? [];
+  lines.push(...(commits.length ? commits.map((commit) => `- \`${commit.sha.slice(0, 12)}\` ${commit.subject} — ${commit.author}, ${commit.authoredAt}`) : ["No created commits could be identified from the detected baseline."]));
+
+  lines.push("", "## Changes", "", "Change summaries are agent-authored.", "");
   const changes = report.changes ?? [];
   lines.push(...(changes.length ? ["| File | Summary |", "|---|---|", ...changes.map((item) => `| \`${item.file}\` | ${item.summary} |`)] : ["No changed files recorded."]));
 
@@ -82,13 +89,27 @@ export function reportMarkdown(report: VerificationReport): string {
   lines.push("", "## Executed test commands", "");
   lines.push(...(report.executedTests?.length ? report.executedTests.map((check) => `- \`${check.command}\` — ${check.outcome}; exit ${check.exitCode ?? "unknown"}; evidence \`${check.evidence}\`.`) : ["No executed test commands recorded."]));
   lines.push("", "Command outcomes are not individual test results. Added/modified test inventory is listed separately.");
-  lines.push("", "## Acceptance criteria", "", "```json", JSON.stringify(report.criteria ?? [], null, 2), "```");
-  lines.push("", "## Gate details", "", "```json", JSON.stringify(report.gate ?? {}, null, 2), "```");
+  lines.push("", "## Acceptance criteria", "");
+  const criteria = (report.criteria ?? []) as Array<{ id?: string; status?: string; description?: string; evidence?: string[] }>;
+  if (criteria.length) {
+    lines.push("| ID | Status | Criterion | Evidence |", "|---|---|---|---|");
+    for (const criterion of criteria) lines.push(`| ${criterion.id ?? "—"} | ${criterion.status ?? "unknown"} | ${criterion.description ?? "—"} | ${(criterion.evidence ?? []).join(", ") || "—"} |`);
+  } else lines.push("No acceptance criteria recorded.");
+  const gate = report.gate ?? {};
+  lines.push("", "## Gate", "", `- **Verdict:** ${String(gate.verdict ?? report.verdict)}`, `- **Allowed:** ${String(gate.allowed ?? "unknown")}`);
+  if (typeof gate.passing_criteria === "number" && typeof gate.total_criteria === "number") lines.push(`- **Criteria:** ${gate.passing_criteria}/${gate.total_criteria} passing`);
+  const issues = Array.isArray(gate.issues) ? gate.issues : [];
+  const sourceIssues = Array.isArray(gate.source_issues) ? gate.source_issues : [];
+  lines.push(...[...issues, ...sourceIssues].map((issue) => `- **Issue:** ${String(issue)}`));
   lines.push("", "## Artifacts", "");
   const artifacts = report.artifacts ?? [];
   lines.push(...(artifacts.length ? artifacts.map((item) => `- **${item.label}:** \`${item.path}\``) : ["No artifacts recorded."]));
   lines.push("", "## Skipped checks", "", ...(report.skipped?.length ? report.skipped.map((item) => `- ${item}`) : ["- None recorded."]));
   lines.push("", "## Limitations", "", ...(report.limitations?.length ? report.limitations.map((item) => `- ${item}`) : ["- None recorded."]));
-  lines.push("", "## Review provenance", "", `- ${report.review ? JSON.stringify(report.review) : "Not recorded."}`);
+  lines.push("", "## Review provenance", "");
+  if (report.review) {
+    const records = report.review.records as { reviews?: unknown[] } | undefined;
+    lines.push(`- **Kind:** ${String(report.review.kind ?? "unknown")}`, `- **Source:** ${String(report.review.source ?? "unknown")}`, `- **Reviews:** ${records?.reviews?.length ?? 0}`);
+  } else lines.push("- Not recorded.");
   return lines.join("\n") + "\n";
 }

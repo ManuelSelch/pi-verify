@@ -4,6 +4,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { AgentAuditsRun, type GateResult } from "./agent-audits.js";
 import { writeReportBundle, type VerificationReport } from "./report.js";
+import { collectGitScope } from "./git-scope.js";
 
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({
   type: "object",
@@ -100,7 +101,6 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
     label: "Finish verification",
     description: "Run the Agent Audits gate and create the durable pi-verify JSON and Markdown reports.",
     parameters: schema({
-      source: schema({ baseline: { type: "string" }, head: { type: "string" }, fingerprint: { type: "string" } }),
       changes: { type: "array", items: schema({ file: { type: "string" }, summary: { type: "string" } }, ["file", "summary"]) },
       tests: { type: "array", description: "Agent-authored added/modified tests, not executed commands. Use unknown unless named runner output supports an outcome.", items: schema({ name: { type: "string" }, file: { type: "string" }, behavior: { type: "string" }, outcome: { type: "string", enum: ["passed", "failed", "skipped", "unknown"] }, evidence: { type: "array", items: { type: "string" } } }, ["name", "file", "behavior", "outcome"]) },
       skipped: { type: "array", items: { type: "string" } },
@@ -109,7 +109,36 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
     async execute(_id, params) {
       const current = state.current;
       if (!current) throw new Error("No verification run. Call verify_start first.");
-      const gate: GateResult = await current.audit.check();
+      const agentGate: GateResult = await current.audit.check();
+      let source: Record<string, unknown>;
+      let commits: VerificationReport["commits"] = [];
+      const sourceIssues: string[] = [];
+      try {
+        const git = await collectGitScope(current.projectDir);
+        commits = git.commits;
+        source = {
+          repository: git.repository,
+          branch: git.branch,
+          baseline: git.baseline ?? "unknown",
+          baselineMethod: git.baselineMethod,
+          head: git.head,
+          fingerprint: git.fingerprint,
+          clean: git.clean,
+          staged: git.staged,
+          unstaged: git.unstaged,
+          untracked: git.untracked,
+        };
+        if (git.untracked.length) sourceIssues.push(`Untracked files exist: ${git.untracked.join(", ")}`);
+        if (git.baselineMethod === "unknown") sourceIssues.push("The task baseline could not be detected, so created commits may be incomplete.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        source = { repository: current.projectDir, git: false, error: message };
+        sourceIssues.push("Git source state and untracked files could not be verified.");
+      }
+      const sourceBlocks = sourceIssues.some((issue) => issue.startsWith("Untracked") || issue.startsWith("Git source"));
+      const allowed = agentGate.allowed && !sourceBlocks;
+      const verdict = sourceBlocks ? "NOT VERIFIED" : agentGate.verdict;
+      const gate: GateResult = { ...agentGate, agent_audits_verdict: agentGate.verdict, verdict, allowed, source_issues: sourceIssues };
       const agentReport = await current.audit.report();
       const acceptance = await auditJson(current, "acceptance.json");
       const index = await auditJson(current, "evidence/index.json");
@@ -124,8 +153,9 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
       }));
       const report: VerificationReport = {
         goal: current.goal,
-        verdict: gate.verdict,
-        source: { project: current.projectDir, baseline: "unknown", head: "unknown", fingerprint: "unknown", ...params.source },
+        verdict,
+        source,
+        commits,
         changes: params.changes ?? [],
         tests: (params.tests ?? []).map((item: object) => ({ ...item, source: "agent-authored" })),
         checks,
@@ -135,11 +165,11 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
         gate,
         artifacts: [{ label: "Agent Audits report", path: agentReport }, ...["acceptance.json", "evidence/index.json", "reviews.json"].map((file) => ({ label: file, path: path.join(current.auditDir, ".agent-audits", file) })), ...(index.evidence as Evidence[]).map((item) => ({ label: item.id, path: path.resolve(current.auditDir, item.artifact_path) }))],
         skipped: params.skipped ?? [],
-        limitations: ["Command execution is unrestricted in this demo.", "Test inventory and supplied source scope are agent-authored; freshness is not automatically validated.", ...params.limitations ?? []],
+        limitations: ["Command execution is unrestricted in this demo.", "Change summaries and test inventory are agent-authored.", ...sourceIssues, ...params.limitations ?? []],
         review: { kind: "self-review", source: "Agent Audits", allowed: gate.allowed, processExitCode: gate.process_exit_code, records: reviews },
       };
       const reportPaths = await writeReportBundle(path.join(current.auditDir, ".agent-audits", "reports"), report);
-      return { content: text({ verdict: gate.verdict, allowed: gate.allowed, reportPaths, auditDir: current.auditDir }), details: { gate, reportPaths, auditDir: current.auditDir } };
+      return { content: text({ verdict, allowed, source, commits, reportPaths, auditDir: current.auditDir }), details: { verdict, allowed, gate, source, commits, reportPaths, auditDir: current.auditDir } };
     },
   };
 

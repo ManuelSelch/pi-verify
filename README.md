@@ -59,9 +59,9 @@ pi install ./pi-verify
 - `verify_start({ goal })`: infer the source project from the session cwd and return acceptance criteria. Runs are isolated under `~/.pi/agent/audits/<project-key>/<unique-run>/`.
 - `verify_add_evidence({ criterion, type, command, summary? })`: execute in the source project and return the evidence ID, actual exit code, artifact path, and captured output (truncated at 16,000 characters). Read the full artifact when truncated. Match the criterion's required evidence type exactly.
 - `verify_review({ criterion, evidence, verdict, notes })`: after inspecting output, record an explicit **self-review** (`supports`, `does-not-support`, or `unclear`). Command success alone does not prove a criterion.
-- `verify_finish({ source?, changes?, tests?, skipped?, limitations? })`: assemble JSON and Markdown automatically from acceptance criteria, evidence, reviews, and gate details. Supply only agent-authored context; never manually overwrite the generated reports.
+- `verify_finish({ changes?, tests?, skipped?, limitations? })`: collect Git source state and assemble JSON and Markdown automatically from acceptance criteria, evidence, reviews, and gate details. Supply only agent-authored context; never manually overwrite the generated reports.
 
-`source` accepts baseline, head, and fingerprint strings; omitted values remain `unknown`. `changes` entries contain file and summary. `tests` lists added/modified tests with name, file, behavior, outcome, and optional evidence IDs. Executed test commands are derived separately from captured `test` evidence; no individual test outcomes are inferred from a successful suite exit. Use `unknown` unless named runner output establishes the result.
+Source metadata is not accepted from the agent. The tool derives repository, branch, baseline, HEAD, tracked-file fingerprint, staged/unstaged/untracked files, and created commits. Any untracked file makes the custom verdict `NOT VERIFIED`, even if Agent Audits passed. `changes` entries contain file and summary. `tests` lists added/modified tests with name, file, behavior, outcome, and optional evidence IDs. Executed test commands are derived separately from captured `test` evidence; no individual test outcomes are inferred from a successful suite exit. Use `unknown` unless named runner output establishes the result.
 
 Reports include raw gate issues, checks with working directories/exit codes, evidence/artifact paths, criteria, review records, and limitations. A failed gate still produces reports. Calling finish again regenerates reports using current reviews/evidence.
 
@@ -69,7 +69,9 @@ Reports include raw gate issues, checks with working directories/exit codes, evi
 
 - Commands are unrestricted and logs may contain sensitive data.
 - Reviews are self-reviews, not independent verification.
-- Test inventory and supplied source metadata are agent-authored; source freshness is not automatically validated.
+- Test inventory and change summaries are agent-authored.
+- Baseline detection uses the oldest branch reflog entry when it records `branch: Created from ...`; this identifies where a worktree feature branch started. Initial repositories use Git's empty tree. Otherwise, a non-primary worktree uses its merge-base with the primary worktree branch. If none is reliable, the baseline stays unknown and the report says its commit list may be incomplete.
+- A tracked-file fingerprint is collected at finish time, but later report freshness is not automatically rechecked.
 - In-memory run state is not restored across reloads or sessions. Reload the extension (or restart Pi) after updating to expose `verify_review` and the new `/verify` prompt.
 
 ## Tests

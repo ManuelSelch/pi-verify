@@ -8,7 +8,8 @@ Status: backend, report renderer, `/verify`, and four verification lifecycle too
 - `verify_finish` assembles criteria, evidence, command outcomes, review records, gate issues, and artifact references automatically; agent-authored context is supplied as optional parameters.
 - `/verify` forbids manual report overwrites and requires matching acceptance evidence types.
 - A disposable addition-project tool integration test covers missing/supporting/rejecting reviews, failed command evidence, and repeat finishes.
-- Source freshness, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.
+- `verify_finish` now derives Git source metadata, rejects untracked files, and lists commits since an automatically detected baseline. Worktree branch creation reflogs are preferred, then the primary-worktree merge-base; initial commits use the empty tree.
+- Later report freshness rechecking, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.
 
 ## Goal
 

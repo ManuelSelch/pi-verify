@@ -10,7 +10,13 @@ test("disposable addition project supports reviews and automatic reports", async
   try {
     await writeFile(path.join(root, "sum.cjs"), "exports.sum = (a, b) => a + b;\n");
     await writeFile(path.join(root, "sum.test.cjs"), "const {sum} = require('./sum.cjs'); require('node:assert/strict').equal(sum(2, 3), 5); console.log('addition passed');\n");
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const exec = promisify(execFile);
+    for (const args of [["init", "-b", "main"], ["config", "user.email", "test@example.com"], ["config", "user.name", "Test"], ["add", "."], ["commit", "-m", "add sum demo"]]) await exec("git", args, { cwd: root });
     const tools = createVerificationTools(() => root, {});
+    const finishTool = tools.find((item) => item.name === "verify_finish")!;
+    assert.equal(Object.hasOwn((finishTool.parameters as { properties: object }).properties, "source"), false);
     const call = (name: string, params: unknown) => {
       const tool = tools.find((item) => item.name === name);
       assert.ok(tool, `${name} is registered`);
@@ -51,6 +57,8 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.equal(report.review.kind, "self-review");
     assert.equal(report.review.records.reviews.length, 3);
     assert.equal(report.gate.allowed, true);
+    assert.equal(report.source.clean, true);
+    assert.deepEqual(report.commits.map((commit: { subject: string }) => commit.subject), ["add sum demo"]);
     assert.equal(report.artifacts.filter((item: { label: string }) => item.label.startsWith("EV-")).length, 3);
     const markdown = await readFile(details.reportPaths.markdownPath, "utf8");
     assert.match(markdown, /Executed test commands/);
@@ -59,6 +67,12 @@ test("disposable addition project supports reviews and automatic reports", async
     await call("verify_review", { criterion: "AC-003", evidence: "EV-003", verdict: "does-not-support", notes: "Direct addition does not cover other numeric cases." });
     const rejected = await call("verify_finish", {});
     assert.equal((rejected.details as typeof details).gate.verdict, "PARTIALLY VERIFIED");
+    await writeFile(path.join(root, "leftover.tmp"), "untracked\n");
+    const dirty = await call("verify_finish", {});
+    assert.equal((dirty.details as { verdict: string }).verdict, "NOT VERIFIED");
+    const dirtyReport = JSON.parse(await readFile((dirty.details as typeof details).reportPaths.jsonPath, "utf8"));
+    assert.deepEqual(dirtyReport.source.untracked, ["leftover.tmp"]);
+    await rm(path.join(root, "leftover.tmp"));
     const failed = await call("verify_add_evidence", { criterion: "AC-003", type: "test", command: "node -e 'process.exit(2)'" });
     assert.equal((failed.details as { exitCode: number }).exitCode, 2);
     const last = await call("verify_finish", {});
