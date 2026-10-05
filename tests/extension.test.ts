@@ -8,6 +8,8 @@ test("verify prompt is composable and task-specific", () => {
   assert.match(prompt, /installed agent-audits CLI/);
   assert.match(prompt, /added and modified tests separately/);
   assert.match(prompt, /Do not commit, merge/);
+  assert.match(prompt, /pi-verify-report\.json/);
+  assert.match(prompt, /tests executed/);
 });
 
 test("verify prompt allows the task to be inferred", () => {

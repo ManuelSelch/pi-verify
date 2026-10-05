@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 export type Outcome = "passed" | "failed" | "skipped" | "unknown";
 
 export type TestEntry = {
@@ -32,6 +35,15 @@ export type VerificationReport = {
 
 export function reportJson(report: VerificationReport): string {
   return JSON.stringify({ schemaVersion: 1, ...report }, null, 2) + "\n";
+}
+
+export async function writeReportBundle(directory: string, report: VerificationReport): Promise<{ jsonPath: string; markdownPath: string }> {
+  await mkdir(directory, { recursive: true });
+  const jsonPath = path.join(directory, "pi-verify-report.json");
+  const markdownPath = path.join(directory, "pi-verify-report.md");
+  await writeFile(jsonPath, reportJson(report));
+  await writeFile(markdownPath, reportMarkdown(report));
+  return { jsonPath, markdownPath };
 }
 
 export function reportMarkdown(report: VerificationReport): string {

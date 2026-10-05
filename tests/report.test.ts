@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { reportJson, reportMarkdown, type VerificationReport } from "../src/report.js";
+import { reportJson, reportMarkdown, type VerificationReport, writeReportBundle } from "../src/report.js";
 
 test("JSON preserves added tests and checks", () => {
   const report: VerificationReport = {
@@ -27,4 +30,15 @@ test("Markdown renders unknown and skipped results", () => {
   assert.match(markdown, /test_unknown/);
   assert.match(markdown, /unknown/);
   assert.match(markdown, /No test runner was configured\./);
+});
+
+test("writeReportBundle creates durable JSON and Markdown files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-report-"));
+  try {
+    const paths = await writeReportBundle(root, { goal: "demo", verdict: "VERIFIED" });
+    assert.match(await readFile(paths.jsonPath, "utf8"), /schemaVersion/);
+    assert.match(await readFile(paths.markdownPath, "utf8"), /Verification Report/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
