@@ -52,7 +52,7 @@ test("Markdown renders an executive summary, compact source, simple dates, and f
     checks: [{ command: "python3 - <<'PY'\nprint('long command')\nPY", outcome: "passed", exitCode: 0, evidence: "EV-001", note: "Run addition checks" }],
     gate: { passing_criteria: 1, total_criteria: 1 },
     artifacts: [{ label: "EV-001", path: "/tmp/demo project/evidence/EV-001.log" }],
-  });
+  }, "/tmp/demo project/reports");
   assert.match(markdown, /## Executive summary/);
   assert.match(markdown, /1\/1 criteria passing/);
   assert.match(markdown, /1\/1 checks passing/);
@@ -60,7 +60,9 @@ test("Markdown renders an executive summary, compact source, simple dates, and f
   assert.doesNotMatch(markdown, new RegExp("f{64}"));
   assert.match(markdown, /2026-10-05 15:55/);
   assert.doesNotMatch(markdown, /2026-10-05T15:55:32/);
-  assert.match(markdown, /\[\/tmp\/demo project\/evidence\/EV-001\.log\]\(file:\/\/\/tmp\/demo%20project\/evidence\/EV-001\.log\)/);
+  assert.match(markdown, /\[EV-001\.log\]\(\.\.\/evidence\/EV-001\.log\)/);
+  assert.doesNotMatch(markdown, /file:\/\//);
+  assert.doesNotMatch(markdown, /\[\/tmp\/demo project\/evidence/);
   assert.doesNotMatch(markdown, /\| `python3 - <<'PY'/);
   assert.match(markdown, /Run addition checks/);
 });

@@ -51,12 +51,15 @@ export async function writeReportBundle(directory: string, report: VerificationR
   const jsonPath = path.join(directory, "pi-verify-report.json");
   const markdownPath = path.join(directory, "pi-verify-report.md");
   await writeFile(jsonPath, reportJson(report));
-  await writeFile(markdownPath, reportMarkdown(report));
+  await writeFile(markdownPath, reportMarkdown(report, directory));
   return { jsonPath, markdownPath };
 }
 
-function markdownFileLink(filePath: string): string {
-  return `[${filePath}](${pathToFileURL(filePath).href})`;
+function markdownFileLink(filePath: string, reportDirectory?: string, label = filePath): string {
+  const href = reportDirectory
+    ? encodeURI(path.relative(reportDirectory, filePath).split(path.sep).join("/") || path.basename(filePath)).replaceAll("#", "%23").replaceAll("(", "%28").replaceAll(")", "%29")
+    : pathToFileURL(filePath).href;
+  return `[${label.replaceAll("[", "\\[").replaceAll("]", "\\]")}](${href})`;
 }
 
 function tableText(value: unknown): string {
@@ -68,7 +71,7 @@ function simpleDate(value: string): string {
   return match ? `${match[1]} ${match[2]}` : value;
 }
 
-export function reportMarkdown(report: VerificationReport): string {
+export function reportMarkdown(report: VerificationReport, reportDirectory?: string): string {
   const lines = ["# Verification Report", "", `**Goal:** ${report.goal}`];
   const source = report.source ?? {};
   const checks = report.checks ?? [];
@@ -81,7 +84,7 @@ export function reportMarkdown(report: VerificationReport): string {
   lines.push(`- **Checks:** ${passingChecks}/${checks.length} checks passing`, `- **Source:** ${source.clean === true ? "clean" : "not clean"}`, `- **Created commits:** ${commits.length}`);
 
   lines.push("", "## Source", "");
-  if (typeof source.repository === "string") lines.push(`- **Repository:** ${markdownFileLink(source.repository)}`);
+  if (typeof source.repository === "string") lines.push(`- **Repository:** ${markdownFileLink(source.repository, reportDirectory, source.repository)}`);
   if (source.branch || source.head) lines.push(`- **Revision:** \`${String(source.branch ?? "detached")}\` at \`${String(source.head ?? "unknown").slice(0, 12)}\``);
   if (source.baseline) lines.push(`- **Baseline:** \`${String(source.baseline).slice(0, 12)}\` (${String(source.baselineMethod ?? "unknown")})`);
   lines.push(`- **Working tree:** ${source.clean === true ? "clean" : "not clean"}`);
@@ -111,7 +114,7 @@ export function reportMarkdown(report: VerificationReport): string {
     lines.push("| Evidence | Check | Result | Exit code |", "|---|---|---|---:|");
     for (const check of checks) {
       const evidencePath = check.evidence ? artifactByLabel.get(check.evidence) : undefined;
-      const evidence = check.evidence ? evidencePath ? `[${check.evidence}](${pathToFileURL(evidencePath).href})` : check.evidence : "—";
+      const evidence = check.evidence ? evidencePath ? markdownFileLink(evidencePath, reportDirectory, check.evidence) : check.evidence : "—";
       const label = check.note || tableText(check.command).slice(0, 100);
       lines.push(`| ${evidence} | ${tableText(label)} | ${check.outcome} | ${check.exitCode ?? "—"} |`);
     }
@@ -132,7 +135,7 @@ export function reportMarkdown(report: VerificationReport): string {
 
   lines.push("", "## Artifacts", "");
   const artifacts = report.artifacts ?? [];
-  lines.push(...(artifacts.length ? artifacts.map((item) => `- **${item.label}:** ${markdownFileLink(item.path)}`) : ["No artifacts recorded."]));
+  lines.push(...(artifacts.length ? artifacts.map((item) => `- **${item.label}:** ${markdownFileLink(item.path, reportDirectory, path.basename(item.path))}`) : ["No artifacts recorded."]));
   lines.push("", "## Skipped checks", "", ...(report.skipped?.length ? report.skipped.map((item) => `- ${item}`) : ["- None recorded."]));
   lines.push("", "## Limitations", "", ...(report.limitations?.length ? report.limitations.map((item) => `- ${item}`) : ["- None recorded."]));
   lines.push("", "## Review provenance", "");

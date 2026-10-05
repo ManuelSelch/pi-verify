@@ -9,7 +9,7 @@ Status: backend, report renderer, `/verify`, and four verification lifecycle too
 - `/verify` forbids manual report overwrites and requires matching acceptance evidence types.
 - A disposable addition-project tool integration test covers missing/supporting/rejecting reviews, failed command evidence, and repeat finishes.
 - `verify_finish` now derives Git source metadata, rejects untracked files, and lists commits since an automatically detected baseline. Worktree branch creation reflogs are preferred, then the primary-worktree merge-base; initial commits use the empty tree.
-- Markdown now has an executive summary, compact source state, concise checks linked to full evidence logs, clickable absolute artifact paths, and simplified commit dates. Exact commands remain in JSON/evidence instead of Markdown tables.
+- Markdown now has an executive summary, compact source state, concise checks linked to full evidence logs, short relative artifact links, and simplified commit dates. Exact commands and absolute artifact paths remain in JSON/evidence instead of Markdown tables.
 - Later report freshness rechecking, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.
 
 ## Goal
