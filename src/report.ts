@@ -23,7 +23,7 @@ export type CheckEntry = {
 };
 
 export type CommitEntry = { sha: string; subject: string; author: string; authoredAt: string };
-export type MatrixEntry = { id: string; criterion?: string; description: string; expected: string; required: boolean; evidence?: string[]; status: "passed" | "failed" | "not-run" };
+export type MatrixEntry = { id: string; criterion?: string; behavior: string; inputs: string; expected: string; required: boolean; evidence?: string[]; status: "passed" | "failed" | "not-run" };
 
 export type VerificationReport = {
   goal: string;
@@ -108,8 +108,8 @@ export function reportMarkdown(report: VerificationReport, reportDirectory?: str
   const passedMatrix = requiredMatrix.filter((row) => row.status === "passed").length;
   lines.push(`**Coverage:** ${passedMatrix}/${requiredMatrix.length} required rows passing.`);
   if (matrix.length) {
-    lines.push("", "| ID | Required | Behavior | Expected | Status | Evidence |", "|---|---|---|---|---|---|");
-    for (const row of matrix) lines.push(`| ${tableText(row.id)} | ${row.required ? "yes" : "no"} | ${tableText(row.description)} | ${tableText(row.expected)} | ${row.status} | ${(row.evidence ?? []).join(", ") || "—"} |`);
+    lines.push("", "| ID | Required | Behavior | Inputs / conditions | Expected | Status | Evidence |", "|---|---|---|---|---|---|---|");
+    for (const row of matrix) lines.push(`| ${tableText(row.id)} | ${row.required ? "yes" : "no"} | ${tableText(row.behavior)} | ${tableText(row.inputs)} | ${tableText(row.expected)} | ${row.status} | ${(row.evidence ?? []).join(", ") || "—"} |`);
   } else lines.push("No verification matrix recorded.");
 
   lines.push("", "## Added and modified tests", "");

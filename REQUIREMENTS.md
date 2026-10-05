@@ -9,7 +9,7 @@ Status: backend, report renderer, `/verify`, and four verification lifecycle too
 - `/verify` forbids manual report overwrites and requires matching acceptance evidence types.
 - A disposable addition-project tool integration test covers missing/supporting/rejecting reviews, failed command evidence, and repeat finishes.
 - `verify_finish` now derives Git source metadata, rejects untracked files, and lists commits since an automatically detected baseline. Worktree branch creation reflogs are preferred, then the primary-worktree merge-base; initial commits use the empty tree.
-- Added an optional verification matrix: required behavior rows are linked to real evidence during collection, rendered in reports, and block `VERIFIED` when unresolved.
+- Added a verification matrix: rows must use VM-* IDs and describe observable behavior with concrete inputs/conditions and expected results. They are linked to real evidence during collection, rendered in reports, and block `VERIFIED` when unresolved. Acceptance-criterion/meta rows are rejected.
 - Markdown now has an executive summary, compact source state, concise checks linked to full evidence logs, short relative artifact links, and simplified commit dates. Exact commands and absolute artifact paths remain in JSON/evidence instead of Markdown tables.
 - After `verify_finish`, the extension emits the generated report once as a displayed `pi-verify-report` custom message at `agent_end`, without triggering another model turn.
 - Later report freshness rechecking, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.

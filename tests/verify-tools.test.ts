@@ -25,10 +25,12 @@ test("disposable addition project supports reviews and automatic reports", async
     };
     const started = await call("verify_start", { goal: "Verify addition in sum.cjs" });
     assert.equal((started.details as { acceptance: { criteria: unknown[] } }).acceptance.criteria.length, 3);
+    await assert.rejects(call("verify_add_matrix", { rows: [{ id: "AC-001", behavior: "The test suite passes", inputs: "suite", expected: "exit 0" }] }), /VM-\*|observable behavior/);
+    await assert.rejects(call("verify_add_matrix", { rows: [{ id: "VM-099", behavior: "The test suite passes", inputs: "suite", expected: "exit 0" }] }), /observable behavior/);
     await call("verify_add_matrix", { rows: [
-      { id: "VM-001", criterion: "AC-001", description: "Source is readable", expected: "Source output is present" },
-      { id: "VM-002", criterion: "AC-002", description: "Implementation is exact", expected: "sum adds two values" },
-      { id: "VM-003", criterion: "AC-003", description: "Behavior passes", expected: "Test command exits 0" },
+      { id: "VM-001", criterion: "AC-001", behavior: "Source can be read", inputs: "sum.cjs exists", expected: "Source output is present" },
+      { id: "VM-002", criterion: "AC-002", behavior: "Addition returns the sum", inputs: "2 and 3", expected: "5" },
+      { id: "VM-003", criterion: "AC-003", behavior: "Addition command succeeds", inputs: "node sum.test.cjs", expected: "Exit code 0" },
     ] });
     const commands = ["printf 'Goal: verify addition'", "node -p \"require('fs').readFileSync('sum.cjs', 'utf8')\"", "node sum.test.cjs"];
     for (const [index, type] of ["file-read", "diff", "test"].entries()) {
@@ -91,7 +93,7 @@ test("disposable addition project supports reviews and automatic reports", async
     const failureReport = JSON.parse(await readFile((last.details as typeof details).reportPaths.jsonPath, "utf8"));
     assert.equal(failureReport.checks.at(-1).outcome, "failed");
     assert.equal(failureReport.executedTests.at(-1).exitCode, 2);
-    await call("verify_add_matrix", { rows: [{ id: "VM-004", description: "Missing required behavior", expected: "A captured check is linked", required: true }] });
+    await call("verify_add_matrix", { rows: [{ id: "VM-004", behavior: "Missing required behavior", inputs: "uncovered input", expected: "A captured check is linked", required: true }] });
     const incomplete = await call("verify_finish", {});
     assert.equal((incomplete.details as { verdict: string }).verdict, "NOT VERIFIED");
     const incompleteReport = JSON.parse(await readFile((incomplete.details as typeof details).reportPaths.jsonPath, "utf8"));

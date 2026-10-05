@@ -21,7 +21,8 @@ type Evidence = { id: string; criterion_id: string; type: string; command?: stri
 export type VerificationMatrixRow = {
   id: string;
   criterion?: string;
-  description: string;
+  behavior: string;
+  inputs: string;
   expected: string;
   required?: boolean;
   evidence?: string[];
@@ -59,6 +60,19 @@ export type VerificationLifecycleState = {
   current?: VerificationState;
   pendingReport?: PendingVerificationReport;
 };
+
+const matrixMetaPatterns = [/goal is captured/i, /test suite passes/i, /diff (?:is|shows|review)/i, /implementation (?:addresses|matches|is correct)/i];
+
+function validateMatrixRows(rows: VerificationMatrixRow[]): void {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (!/^VM-\d+$/.test(row.id)) throw new Error(`Verification matrix IDs must use VM-* (received ${row.id}). Do not use acceptance criterion IDs.`);
+    if (ids.has(row.id)) throw new Error(`Verification matrix row IDs must be unique: ${row.id}.`);
+    ids.add(row.id);
+    if (!row.behavior.trim() || !row.inputs.trim() || !row.expected.trim()) throw new Error(`${row.id} requires behavior, concrete inputs or conditions, and expected result.`);
+    if (matrixMetaPatterns.some((pattern) => pattern.test(row.behavior))) throw new Error(`${row.id} must describe an observable behavior, not a criterion, diff review, or test-suite status.`);
+  }
+}
 
 function matrixStatus(row: VerificationMatrixRow, evidence: Evidence[]): "passed" | "failed" | "not-run" {
   const linked = evidence.filter((item) => row.evidence?.includes(item.id));
@@ -98,12 +112,12 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
     name: "verify_add_matrix",
     label: "Add verification matrix",
     description: "Define the required behavior rows for verification. Link captured evidence later by passing matrix row IDs to verify_add_evidence.",
-    parameters: schema({ rows: { type: "array", minItems: 1, items: schema({ id: { type: "string" }, criterion: { type: "string" }, description: { type: "string" }, expected: { type: "string" }, required: { type: "boolean" } }, ["id", "description", "expected"]) } }, ["rows"]),
+    parameters: schema({ rows: { type: "array", minItems: 1, items: schema({ id: { type: "string", pattern: "^VM-\\d+$" }, criterion: { type: "string" }, behavior: { type: "string" }, inputs: { type: "string" }, expected: { type: "string" }, required: { type: "boolean" } }, ["id", "behavior", "inputs", "expected"]) } }, ["rows"]),
     async execute(_id, params) {
       const current = state.current;
       if (!current) throw new Error("No verification run. Call verify_start first.");
       const rows = params.rows as VerificationMatrixRow[];
-      if (new Set(rows.map((row) => row.id)).size !== rows.length) throw new Error("Verification matrix row IDs must be unique.");
+      validateMatrixRows(rows);
       current.matrix = rows.map((row) => ({ ...row, required: row.required !== false, evidence: row.evidence ?? [] }));
       return { content: text({ rows: current.matrix }), details: { rows: current.matrix, auditDir: current.auditDir } };
     },
