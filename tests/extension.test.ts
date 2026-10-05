@@ -5,7 +5,7 @@ import { buildVerifyPrompt } from "../src/extension.js";
 test("verify prompt is composable and task-specific", () => {
   const prompt = buildVerifyPrompt("Fix the login redirect");
   assert.match(prompt, /Task focus: Fix the login redirect/);
-  assert.match(prompt, /installed agent-audits CLI/);
+  assert.match(prompt, /verify_start, verify_add_evidence, and verify_finish/);
   assert.match(prompt, /added and modified tests separately/);
   assert.match(prompt, /Do not commit, merge/);
   assert.match(prompt, /pi-verify-report\.json/);
