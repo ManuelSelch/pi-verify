@@ -61,7 +61,9 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.deepEqual(report.commits.map((commit: { subject: string }) => commit.subject), ["add sum demo"]);
     assert.equal(report.artifacts.filter((item: { label: string }) => item.label.startsWith("EV-")).length, 3);
     const markdown = await readFile(details.reportPaths.markdownPath, "utf8");
-    assert.match(markdown, /Executed test commands/);
+    assert.match(markdown, /## Executive summary/);
+    assert.match(markdown, /## Checks/);
+    assert.doesNotMatch(markdown, /Executed test commands/);
     assert.match(markdown, /AC-003/);
     assert.match(report.artifacts[0].path, /\/report-.*\.md$/);
     await call("verify_review", { criterion: "AC-003", evidence: "EV-003", verdict: "does-not-support", notes: "Direct addition does not cover other numeric cases." });

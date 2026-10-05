@@ -32,6 +32,39 @@ test("Markdown renders unknown and skipped results", () => {
   assert.match(markdown, /No test runner was configured\./);
 });
 
+test("Markdown renders an executive summary, compact source, simple dates, and file links", () => {
+  const markdown = reportMarkdown({
+    goal: "Verify addition",
+    verdict: "VERIFIED",
+    source: {
+      repository: "/tmp/demo project",
+      branch: "feature/add",
+      baseline: "1111111111111111111111111111111111111111",
+      baselineMethod: "branch-creation-reflog",
+      head: "2222222222222222222222222222222222222222",
+      fingerprint: "f".repeat(64),
+      clean: true,
+      staged: [],
+      unstaged: [],
+      untracked: [],
+    },
+    commits: [{ sha: "2222222222222222222222222222222222222222", subject: "Add numbers", author: "Test User", authoredAt: "2026-10-05T15:55:32+02:00" }],
+    checks: [{ command: "python3 - <<'PY'\nprint('long command')\nPY", outcome: "passed", exitCode: 0, evidence: "EV-001", note: "Run addition checks" }],
+    gate: { passing_criteria: 1, total_criteria: 1 },
+    artifacts: [{ label: "EV-001", path: "/tmp/demo project/evidence/EV-001.log" }],
+  });
+  assert.match(markdown, /## Executive summary/);
+  assert.match(markdown, /1\/1 criteria passing/);
+  assert.match(markdown, /1\/1 checks passing/);
+  assert.match(markdown, /`feature\/add` at `222222222222`/);
+  assert.doesNotMatch(markdown, new RegExp("f{64}"));
+  assert.match(markdown, /2026-10-05 15:55/);
+  assert.doesNotMatch(markdown, /2026-10-05T15:55:32/);
+  assert.match(markdown, /\[\/tmp\/demo project\/evidence\/EV-001\.log\]\(file:\/\/\/tmp\/demo%20project\/evidence\/EV-001\.log\)/);
+  assert.doesNotMatch(markdown, /\| `python3 - <<'PY'/);
+  assert.match(markdown, /Run addition checks/);
+});
+
 test("writeReportBundle creates durable JSON and Markdown files", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-report-"));
   try {

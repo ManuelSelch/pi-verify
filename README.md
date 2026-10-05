@@ -63,7 +63,7 @@ pi install ./pi-verify
 
 Source metadata is not accepted from the agent. The tool derives repository, branch, baseline, HEAD, tracked-file fingerprint, staged/unstaged/untracked files, and created commits. Any untracked file makes the custom verdict `NOT VERIFIED`, even if Agent Audits passed. `changes` entries contain file and summary. `tests` lists added/modified tests with name, file, behavior, outcome, and optional evidence IDs. Executed test commands are derived separately from captured `test` evidence; no individual test outcomes are inferred from a successful suite exit. Use `unknown` unless named runner output establishes the result.
 
-Reports include raw gate issues, checks with working directories/exit codes, evidence/artifact paths, criteria, review records, and limitations. A failed gate still produces reports. Calling finish again regenerates reports using current reviews/evidence.
+The JSON report retains exact commands and complete structured data. Markdown starts with an executive summary, renders source scope compactly, uses evidence summaries instead of multiline commands in tables, links absolute artifact paths, and formats commit timestamps as `YYYY-MM-DD HH:mm`. A failed gate still produces reports. Calling finish again regenerates reports using current reviews/evidence.
 
 ### Current limitations
 
