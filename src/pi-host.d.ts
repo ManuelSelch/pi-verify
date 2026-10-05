@@ -9,5 +9,10 @@ declare module "@earendil-works/pi-coding-agent" {
       },
     ): void;
     sendUserMessage(message: string): void;
+    sendMessage(
+      message: { customType: string; content: string; display: boolean; details?: unknown },
+      options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" },
+    ): void;
+    on(event: "agent_end", handler: (event: unknown, context: unknown) => void | Promise<void>): void;
   }
 }

@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerVerificationTools } from "./verify-tools.js";
+import { registerVerificationTools, type VerificationLifecycleState } from "./verify-tools.js";
 
 export function buildVerifyPrompt(argument: string): string {
   const goal = argument.trim();
@@ -25,9 +25,37 @@ export function buildVerifyPrompt(argument: string): string {
   ].join("\n");
 }
 
+export function emitPendingVerificationReport(
+  state: VerificationLifecycleState,
+  sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }, options: { triggerTurn: boolean }) => void,
+): boolean {
+  const pending = state.pendingReport;
+  if (!pending || pending.shown) return false;
+  pending.shown = true;
+  sendMessage(
+    {
+      customType: "pi-verify-report",
+      content: pending.markdown,
+      display: true,
+      details: {
+        verdict: pending.verdict,
+        allowed: pending.allowed,
+        auditDir: pending.auditDir,
+        jsonPath: pending.jsonPath,
+        markdownPath: pending.markdownPath,
+      },
+    },
+    { triggerTurn: false },
+  );
+  return true;
+}
+
 export default function registerVerify(pi: ExtensionAPI): void {
-  const state: { current?: Parameters<typeof registerVerificationTools>[2]["current"] } = {};
+  const state: VerificationLifecycleState = {};
   registerVerificationTools(pi, () => process.cwd(), state);
+  pi.on("agent_end", async () => {
+    emitPendingVerificationReport(state, (message, options) => pi.sendMessage(message, options));
+  });
   pi.registerCommand("verify", {
     description: "Collect task evidence and generate a verification report",
     handler: async (argument) => {

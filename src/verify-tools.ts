@@ -36,6 +36,21 @@ export type VerificationState = {
   audit: AgentAuditsRun;
 };
 
+export type PendingVerificationReport = {
+  markdown: string;
+  jsonPath: string;
+  markdownPath: string;
+  auditDir: string;
+  verdict: string;
+  allowed: boolean;
+  shown?: boolean;
+};
+
+export type VerificationLifecycleState = {
+  current?: VerificationState;
+  pendingReport?: PendingVerificationReport;
+};
+
 type ToolContext = { cwd?: string };
 type Tool = {
   name: string;
@@ -45,7 +60,7 @@ type Tool = {
   execute: (toolCallId: string, params: any, signal: AbortSignal, onUpdate: unknown, ctx: ToolContext) => Promise<{ content: Array<{ type: "text"; text: string }>; details: unknown }>;
 };
 
-export function createVerificationTools(getCwd: () => string, state: { current?: VerificationState }): Tool[] {
+export function createVerificationTools(getCwd: () => string, state: VerificationLifecycleState): Tool[] {
   const start: Tool = {
     name: "verify_start",
     label: "Start verification",
@@ -169,6 +184,8 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
         review: { kind: "self-review", source: "Agent Audits", allowed: gate.allowed, processExitCode: gate.process_exit_code, records: reviews },
       };
       const reportPaths = await writeReportBundle(path.join(current.auditDir, ".agent-audits", "reports"), report);
+      const markdown = await readFile(reportPaths.markdownPath, "utf8");
+      state.pendingReport = { markdown, ...reportPaths, auditDir: current.auditDir, verdict, allowed };
       return { content: text({ verdict, allowed, source, commits, reportPaths, auditDir: current.auditDir }), details: { verdict, allowed, gate, source, commits, reportPaths, auditDir: current.auditDir } };
     },
   };
@@ -176,6 +193,6 @@ export function createVerificationTools(getCwd: () => string, state: { current?:
   return [start, addEvidence, review, finish];
 }
 
-export function registerVerificationTools(pi: { registerTool: (tool: Tool) => void }, getCwd: () => string, state: { current?: VerificationState }): void {
+export function registerVerificationTools(pi: { registerTool: (tool: Tool) => void }, getCwd: () => string, state: VerificationLifecycleState): void {
   for (const tool of createVerificationTools(getCwd, state)) pi.registerTool(tool);
 }
