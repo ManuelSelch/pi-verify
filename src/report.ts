@@ -23,12 +23,14 @@ export type CheckEntry = {
 };
 
 export type CommitEntry = { sha: string; subject: string; author: string; authoredAt: string };
+export type MatrixEntry = { id: string; criterion?: string; description: string; expected: string; required: boolean; evidence?: string[]; status: "passed" | "failed" | "not-run" };
 
 export type VerificationReport = {
   goal: string;
   verdict: string;
   source?: Record<string, unknown>;
   commits?: CommitEntry[];
+  matrix?: MatrixEntry[];
   changes?: Array<{ file: string; summary: string }>;
   tests?: TestEntry[];
   checks?: CheckEntry[];
@@ -100,6 +102,16 @@ export function reportMarkdown(report: VerificationReport, reportDirectory?: str
   const changes = report.changes ?? [];
   lines.push(...(changes.length ? ["| File | Summary |", "|---|---|", ...changes.map((item) => `| \`${tableText(item.file)}\` | ${tableText(item.summary)} |`)] : ["No changed files recorded."]));
 
+  lines.push("", "## Verification matrix", "");
+  const matrix = report.matrix ?? [];
+  const requiredMatrix = matrix.filter((row) => row.required);
+  const passedMatrix = requiredMatrix.filter((row) => row.status === "passed").length;
+  lines.push(`**Coverage:** ${passedMatrix}/${requiredMatrix.length} required rows passing.`);
+  if (matrix.length) {
+    lines.push("", "| ID | Required | Behavior | Expected | Status | Evidence |", "|---|---|---|---|---|---|");
+    for (const row of matrix) lines.push(`| ${tableText(row.id)} | ${row.required ? "yes" : "no"} | ${tableText(row.description)} | ${tableText(row.expected)} | ${row.status} | ${(row.evidence ?? []).join(", ") || "—"} |`);
+  } else lines.push("No verification matrix recorded.");
+
   lines.push("", "## Added and modified tests", "");
   const tests = report.tests ?? [];
   if (tests.length) {
@@ -131,7 +143,8 @@ export function reportMarkdown(report: VerificationReport, reportDirectory?: str
   lines.push("", "## Gate", "", `- **Verdict:** ${String(gate.verdict ?? report.verdict)}`, `- **Allowed:** ${String(gate.allowed ?? "unknown")}`);
   const issues = Array.isArray(gate.issues) ? gate.issues : [];
   const sourceIssues = Array.isArray(gate.source_issues) ? gate.source_issues : [];
-  lines.push(...[...issues, ...sourceIssues].map((issue) => `- **Issue:** ${String(issue)}`));
+  const matrixIssues = Array.isArray(gate.matrix_issues) ? gate.matrix_issues : [];
+  lines.push(...[...issues, ...sourceIssues, ...matrixIssues].map((issue) => `- **Issue:** ${String(issue)}`));
 
   lines.push("", "## Artifacts", "");
   const artifacts = report.artifacts ?? [];
