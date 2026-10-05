@@ -38,7 +38,7 @@ Test entries are supplied by the caller in this slice. The renderer does not inv
 
 ### Slice 3: minimal Pi package and `/verify`
 
-`src/extension.ts` registers `/verify`. The command sends a focused workflow prompt to the current Pi session; it does not require `/todo`, `/worktree`, planning, or cleanup. It explicitly tells the agent to use the installed `agent-audits` CLI, collect real evidence, list changed tests separately from executed tests, and avoid destructive lifecycle actions.
+`src/extension.ts` registers `/verify`. The command sends a focused workflow prompt to the current Pi session; it does not require `/todo`, `/worktree`, planning, or cleanup. It tells the agent to use the verification tools, collect real evidence, list changed tests separately from executed tests, and avoid destructive lifecycle actions.
 
 The package manifest exposes the compiled extension through the Pi package field:
 
@@ -54,6 +54,24 @@ For a permanent local installation, use Pi's package command from the parent dir
 pi install ./pi-verify
 ```
 
+## Verification tools
+
+- `verify_start({ goal })`: infer the source project from the session cwd and return acceptance criteria. Runs are isolated under `~/.pi/agent/audits/<project-key>/<unique-run>/`.
+- `verify_add_evidence({ criterion, type, command, summary? })`: execute in the source project and return the evidence ID, actual exit code, artifact path, and captured output (truncated at 16,000 characters). Read the full artifact when truncated. Match the criterion's required evidence type exactly.
+- `verify_review({ criterion, evidence, verdict, notes })`: after inspecting output, record an explicit **self-review** (`supports`, `does-not-support`, or `unclear`). Command success alone does not prove a criterion.
+- `verify_finish({ source?, changes?, tests?, skipped?, limitations? })`: assemble JSON and Markdown automatically from acceptance criteria, evidence, reviews, and gate details. Supply only agent-authored context; never manually overwrite the generated reports.
+
+`source` accepts baseline, head, and fingerprint strings; omitted values remain `unknown`. `changes` entries contain file and summary. `tests` lists added/modified tests with name, file, behavior, outcome, and optional evidence IDs. Executed test commands are derived separately from captured `test` evidence; no individual test outcomes are inferred from a successful suite exit. Use `unknown` unless named runner output establishes the result.
+
+Reports include raw gate issues, checks with working directories/exit codes, evidence/artifact paths, criteria, review records, and limitations. A failed gate still produces reports. Calling finish again regenerates reports using current reviews/evidence.
+
+### Current limitations
+
+- Commands are unrestricted and logs may contain sensitive data.
+- Reviews are self-reviews, not independent verification.
+- Test inventory and supplied source metadata are agent-authored; source freshness is not automatically validated.
+- In-memory run state is not restored across reloads or sessions. Reload the extension (or restart Pi) after updating to expose `verify_review` and the new `/verify` prompt.
+
 ## Tests
 
 Install dependencies and run the TypeScript build/tests:
@@ -62,3 +80,5 @@ Install dependencies and run the TypeScript build/tests:
 npm install
 npm test
 ```
+
+The lifecycle integration test creates a separate disposable Node addition project and calls the registered tool handlers with its cwd against the real installed Agent Audits CLI. It checks missing reviews, successful reviews, rejected evidence, failed commands, and repeated report generation. This is a tool-handler integration test, not a live model-session test.

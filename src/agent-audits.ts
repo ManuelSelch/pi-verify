@@ -69,14 +69,15 @@ export class AgentAuditsRun {
     const args = ["add-evidence", "--criterion", criterion, "--type", type, "--command", sourceCommand];
     if (options.summary) args.push("--summary", options.summary);
     if (options.expectedExitCode !== undefined) args.push("--exit-code", String(options.expectedExitCode));
-    const result = await this.cli(args);
-    const match = result.stdout.match(/EV-\d+/);
+    // The CLI exits nonzero for failed commands even when evidence was saved.
+    const result = await this.cli(args, true);
+    const match = result.stdout.match(/Added evidence (EV-\d+)/);
     if (!match) throw new AgentAuditsError(`No evidence ID returned: ${result.stdout}`);
-    return match[0];
+    return match[1];
   }
 
   async review(criterion: string, evidence: string, verdict: string, notes: string): Promise<void> {
-    await this.cli(["review", "--criterion", criterion, "--evidence", evidence, "--verdict", verdict, "--notes", notes]);
+    await this.cli(["review", "--criterion", criterion, "--evidence", evidence, "--verdict", verdict, "--notes", notes, "--reviewer-kind", "agent", "--reviewer-name", "pi-verify self-review"]);
   }
 
   async check(): Promise<GateResult> {
@@ -91,7 +92,7 @@ export class AgentAuditsRun {
   async report(): Promise<string> {
     await this.cli(["report"]);
     const reportsDir = path.join(this.runDir, ".agent-audits", "reports");
-    const files = (await readdir(reportsDir)).filter((file) => file.endsWith(".md")).sort();
+    const files = (await readdir(reportsDir)).filter((file) => file.startsWith("report-") && file.endsWith(".md")).sort();
     if (!files.length) throw new AgentAuditsError("Agent Audits did not create a Markdown report");
     return path.join(reportsDir, files.at(-1)!);
   }

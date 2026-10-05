@@ -14,6 +14,7 @@ export type TestEntry = {
 
 export type CheckEntry = {
   command: string;
+  cwd?: string;
   outcome: Outcome;
   exitCode?: number;
   evidence?: string;
@@ -27,6 +28,10 @@ export type VerificationReport = {
   changes?: Array<{ file: string; summary: string }>;
   tests?: TestEntry[];
   checks?: CheckEntry[];
+  executedTests?: CheckEntry[];
+  criteria?: unknown[];
+  evidence?: unknown[];
+  gate?: Record<string, unknown>;
   artifacts?: Array<{ label: string; path: string }>;
   skipped?: string[];
   limitations?: string[];
@@ -70,10 +75,15 @@ export function reportMarkdown(report: VerificationReport): string {
   lines.push("", "## Checks", "");
   const checks = report.checks ?? [];
   if (checks.length) {
-    lines.push("| Command | Result | Exit code | Evidence |", "|---|---|---:|---|");
-    for (const check of checks) lines.push(`| \`${check.command}\` | ${check.outcome} | ${check.exitCode ?? "—"} | ${check.evidence ? `\`${check.evidence}\`` : "—"} |`);
+    lines.push("| Command | Working directory | Result | Exit code | Evidence |", "|---|---|---|---:|---|");
+    for (const check of checks) lines.push(`| \`${check.command}\` | \`${check.cwd ?? "unknown"}\` | ${check.outcome} | ${check.exitCode ?? "—"} | ${check.evidence ? `\`${check.evidence}\`` : "—"} |`);
   } else lines.push("No checks recorded.");
 
+  lines.push("", "## Executed test commands", "");
+  lines.push(...(report.executedTests?.length ? report.executedTests.map((check) => `- \`${check.command}\` — ${check.outcome}; exit ${check.exitCode ?? "unknown"}; evidence \`${check.evidence}\`.`) : ["No executed test commands recorded."]));
+  lines.push("", "Command outcomes are not individual test results. Added/modified test inventory is listed separately.");
+  lines.push("", "## Acceptance criteria", "", "```json", JSON.stringify(report.criteria ?? [], null, 2), "```");
+  lines.push("", "## Gate details", "", "```json", JSON.stringify(report.gate ?? {}, null, 2), "```");
   lines.push("", "## Artifacts", "");
   const artifacts = report.artifacts ?? [];
   lines.push(...(artifacts.length ? artifacts.map((item) => `- **${item.label}:** \`${item.path}\``) : ["No artifacts recorded."]));

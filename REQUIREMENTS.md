@@ -1,6 +1,14 @@
 # pi-verify — requirements and implementation plan
 
-Status: proposed; implementation has not started.
+Status: backend, report renderer, `/verify`, and four verification lifecycle tools implemented. Full v1 scope/freshness and artifact features remain incomplete.
+
+## Latest implementation slice
+
+- Added explicit `verify_review` self-reviews.
+- `verify_finish` assembles criteria, evidence, command outcomes, review records, gate issues, and artifact references automatically; agent-authored context is supplied as optional parameters.
+- `/verify` forbids manual report overwrites and requires matching acceptance evidence types.
+- A disposable addition-project tool integration test covers missing/supporting/rejecting reviews, failed command evidence, and repeat finishes.
+- Source freshness, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.
 
 ## Goal
 

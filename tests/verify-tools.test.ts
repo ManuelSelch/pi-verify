@@ -1,29 +1,77 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createVerificationTools } from "../src/verify-tools.js";
 
-test("verification tools wrap an Agent Audits lifecycle", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-tools-"));
-  const state: { current?: unknown } = {};
+test("disposable addition project supports reviews and automatic reports", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-addition-demo-"));
   try {
-    const tools = createVerificationTools(() => root, state as never);
-    const start = tools.find((tool) => tool.name === "verify_start")!;
-    const evidenceTool = tools.find((tool) => tool.name === "verify_add_evidence")!;
-    const finish = tools.find((tool) => tool.name === "verify_finish")!;
-    const started = await start.execute("1", { goal: "Verify a demo command" }, new AbortController().signal, undefined, { cwd: root });
-    const startedDetails = started.details as { auditDir: string; acceptance: { criteria: unknown[] } };
-    assert.equal(startedDetails.acceptance.criteria.length, 3);
-    const evidence = await evidenceTool.execute("2", { criterion: "AC-001", type: "test", command: "printf demo", summary: "demo output" }, new AbortController().signal, undefined, { cwd: root });
-    assert.match((evidence.details as { evidence: string }).evidence, /^EV-/);
-    const finished = await finish.execute("3", {}, new AbortController().signal, undefined, { cwd: root });
-    const details = finished.details as { reportPaths: { jsonPath: string; markdownPath: string }; gate: { verdict: string } };
-    assert.equal(details.gate.verdict, "NOT VERIFIED");
-    assert.match(await readFile(details.reportPaths.jsonPath, "utf8"), /schemaVersion/);
-    assert.match(await readFile(details.reportPaths.markdownPath, "utf8"), /Verification Report/);
+    await writeFile(path.join(root, "sum.cjs"), "exports.sum = (a, b) => a + b;\n");
+    await writeFile(path.join(root, "sum.test.cjs"), "const {sum} = require('./sum.cjs'); require('node:assert/strict').equal(sum(2, 3), 5); console.log('addition passed');\n");
+    const tools = createVerificationTools(() => root, {});
+    const call = (name: string, params: unknown) => {
+      const tool = tools.find((item) => item.name === name);
+      assert.ok(tool, `${name} is registered`);
+      return tool.execute(name, params, new AbortController().signal, undefined, { cwd: root });
+    };
+    const started = await call("verify_start", { goal: "Verify addition in sum.cjs" });
+    assert.equal((started.details as { acceptance: { criteria: unknown[] } }).acceptance.criteria.length, 3);
+    const commands = ["printf 'Goal: verify addition'", "node -p \"require('fs').readFileSync('sum.cjs', 'utf8')\"", "node sum.test.cjs"];
+    for (const [index, type] of ["file-read", "diff", "test"].entries()) {
+      const criterion = `AC-00${index + 1}`;
+      const result = await call("verify_add_evidence", { criterion, type, command: commands[index] });
+      const data = result.details as { evidence: string; artifactPath: string; output: string };
+      assert.ok(data.output.length > 0);
+      assert.ok(await readFile(data.artifactPath, "utf8"));
+    }
+    const before = await call("verify_finish", {});
+    const beforeDetails = before.details as { gate: { verdict: string }; reportPaths: { jsonPath: string; markdownPath: string } };
+    assert.equal(beforeDetails.gate.verdict, "NOT VERIFIED");
+    const unreviewed = JSON.parse(await readFile(beforeDetails.reportPaths.jsonPath, "utf8"));
+    assert.equal(unreviewed.checks[0].exitCode, 0);
+    assert.equal(unreviewed.criteria.length, 3);
+    for (let index = 1; index <= 3; index++) {
+      await call("verify_review", { criterion: `AC-00${index}`, evidence: `EV-00${index}`, verdict: "supports", notes: "Self-review: inspected captured output against the criterion." });
+    }
+    const summary = {
+      changes: [{ file: "sum.cjs", summary: "Adds two numbers" }],
+      tests: [{ name: "addition", file: "sum.test.cjs", behavior: "2 + 3 is 5", outcome: "unknown" }],
+      skipped: ["Git comparison unavailable: standalone fixture"],
+    };
+    const finished = await call("verify_finish", summary);
+    const details = finished.details as typeof beforeDetails;
+    assert.equal(details.gate.verdict, "VERIFIED");
+    const report = JSON.parse(await readFile(details.reportPaths.jsonPath, "utf8"));
+    assert.equal(report.checks.length, 3);
+    assert.equal(report.executedTests.length, 1);
+    assert.equal(report.tests[0].outcome, "unknown");
+    assert.deepEqual(report.changes, summary.changes);
+    assert.equal(report.review.kind, "self-review");
+    assert.equal(report.review.records.reviews.length, 3);
+    assert.equal(report.gate.allowed, true);
+    assert.equal(report.artifacts.filter((item: { label: string }) => item.label.startsWith("EV-")).length, 3);
+    const markdown = await readFile(details.reportPaths.markdownPath, "utf8");
+    assert.match(markdown, /Executed test commands/);
+    assert.match(markdown, /AC-003/);
+    assert.match(report.artifacts[0].path, /\/report-.*\.md$/);
+    await call("verify_review", { criterion: "AC-003", evidence: "EV-003", verdict: "does-not-support", notes: "Direct addition does not cover other numeric cases." });
+    const rejected = await call("verify_finish", {});
+    assert.equal((rejected.details as typeof details).gate.verdict, "PARTIALLY VERIFIED");
+    const failed = await call("verify_add_evidence", { criterion: "AC-003", type: "test", command: "node -e 'process.exit(2)'" });
+    assert.equal((failed.details as { exitCode: number }).exitCode, 2);
+    const last = await call("verify_finish", {});
+    const failureReport = JSON.parse(await readFile((last.details as typeof details).reportPaths.jsonPath, "utf8"));
+    assert.equal(failureReport.checks.at(-1).outcome, "failed");
+    assert.equal(failureReport.executedTests.at(-1).exitCode, 2);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("review requires an active run", async () => {
+  const tool = createVerificationTools(() => process.cwd(), {}).find((item) => item.name === "verify_review");
+  assert.ok(tool);
+  await assert.rejects(tool.execute("1", {}, new AbortController().signal, undefined, {}), /verify_start/);
 });
