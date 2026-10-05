@@ -15,7 +15,6 @@ test("disposable addition project supports reviews and automatic reports", async
     const exec = promisify(execFile);
     for (const args of [["init", "-b", "main"], ["config", "user.email", "test@example.com"], ["config", "user.name", "Test"], ["add", "."], ["commit", "-m", "add sum demo"]]) await exec("git", args, { cwd: root });
     const tools = createVerificationTools(() => root, {});
-    const matrixTool = tools.find((item) => item.name === "verify_add_matrix")!;
     const finishTool = tools.find((item) => item.name === "verify_finish")!;
     assert.equal(Object.hasOwn((finishTool.parameters as { properties: object }).properties, "source"), false);
     const call = (name: string, params: unknown) => {
@@ -25,17 +24,10 @@ test("disposable addition project supports reviews and automatic reports", async
     };
     const started = await call("verify_start", { goal: "Verify addition in sum.cjs" });
     assert.equal((started.details as { acceptance: { criteria: unknown[] } }).acceptance.criteria.length, 3);
-    await assert.rejects(call("verify_add_matrix", { rows: [{ id: "AC-001", behavior: "The test suite passes", inputs: "suite", expected: "exit 0" }] }), /VM-\*|observable behavior/);
-    await assert.rejects(call("verify_add_matrix", { rows: [{ id: "VM-099", behavior: "The test suite passes", inputs: "suite", expected: "exit 0" }] }), /observable behavior/);
-    await call("verify_add_matrix", { rows: [
-      { id: "VM-001", criterion: "AC-001", behavior: "Source can be read", inputs: "sum.cjs exists", expected: "Source output is present" },
-      { id: "VM-002", criterion: "AC-002", behavior: "Addition returns the sum", inputs: "2 and 3", expected: "5" },
-      { id: "VM-003", criterion: "AC-003", behavior: "Addition command succeeds", inputs: "node sum.test.cjs", expected: "Exit code 0" },
-    ] });
     const commands = ["printf 'Goal: verify addition'", "node -p \"require('fs').readFileSync('sum.cjs', 'utf8')\"", "node sum.test.cjs"];
     for (const [index, type] of ["file-read", "diff", "test"].entries()) {
       const criterion = `AC-00${index + 1}`;
-      const result = await call("verify_add_evidence", { criterion, type, command: commands[index], matrixRows: [`VM-00${index + 1}`] });
+      const result = await call("verify_add_evidence", { criterion, type, command: commands[index] });
       const data = result.details as { evidence: string; artifactPath: string; output: string };
       assert.ok(data.output.length > 0);
       assert.ok(await readFile(data.artifactPath, "utf8"));
@@ -59,8 +51,6 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.equal(details.gate.verdict, "VERIFIED");
     const report = JSON.parse(await readFile(details.reportPaths.jsonPath, "utf8"));
     assert.equal(report.checks.length, 3);
-    assert.equal(report.matrix.length, 3);
-    assert.equal(report.matrix.filter((row: { status: string }) => row.status === "passed").length, 3);
     assert.equal(report.executedTests.length, 1);
     assert.equal(report.tests[0].outcome, "unknown");
     assert.deepEqual(report.changes, summary.changes);
@@ -72,8 +62,6 @@ test("disposable addition project supports reviews and automatic reports", async
     assert.equal(report.artifacts.filter((item: { label: string }) => item.label.startsWith("EV-")).length, 3);
     const markdown = await readFile(details.reportPaths.markdownPath, "utf8");
     assert.match(markdown, /## Executive summary/);
-    assert.match(markdown, /## Verification matrix/);
-    assert.match(markdown, /3\/3 required rows passing/);
     assert.match(markdown, /## Checks/);
     assert.doesNotMatch(markdown, /Executed test commands/);
     assert.match(markdown, /AC-003/);
@@ -93,12 +81,6 @@ test("disposable addition project supports reviews and automatic reports", async
     const failureReport = JSON.parse(await readFile((last.details as typeof details).reportPaths.jsonPath, "utf8"));
     assert.equal(failureReport.checks.at(-1).outcome, "failed");
     assert.equal(failureReport.executedTests.at(-1).exitCode, 2);
-    await call("verify_add_matrix", { rows: [{ id: "VM-004", behavior: "Missing required behavior", inputs: "uncovered input", expected: "A captured check is linked", required: true }] });
-    const incomplete = await call("verify_finish", {});
-    assert.equal((incomplete.details as { verdict: string }).verdict, "NOT VERIFIED");
-    const incompleteReport = JSON.parse(await readFile((incomplete.details as typeof details).reportPaths.jsonPath, "utf8"));
-    assert.equal(incompleteReport.matrix[0].status, "not-run");
-    assert.match(incompleteReport.gate.matrix_issues[0], /VM-004 is not-run/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

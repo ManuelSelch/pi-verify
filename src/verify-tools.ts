@@ -18,16 +18,6 @@ const text = (value: unknown): Array<{ type: "text"; text: string }> => [
 ];
 
 type Evidence = { id: string; criterion_id: string; type: string; command?: string; exit_code?: number; artifact_path: string; summary?: string };
-export type VerificationMatrixRow = {
-  id: string;
-  criterion?: string;
-  behavior: string;
-  inputs: string;
-  expected: string;
-  required?: boolean;
-  evidence?: string[];
-};
-
 async function auditJson(current: VerificationState, file: string): Promise<any> {
   return JSON.parse(await readFile(path.join(current.auditDir, ".agent-audits", file), "utf8"));
 }
@@ -43,7 +33,6 @@ export type VerificationState = {
   projectDir: string;
   auditDir: string;
   audit: AgentAuditsRun;
-  matrix?: VerificationMatrixRow[];
 };
 
 export type PendingVerificationReport = {
@@ -60,25 +49,6 @@ export type VerificationLifecycleState = {
   current?: VerificationState;
   pendingReport?: PendingVerificationReport;
 };
-
-const matrixMetaPatterns = [/goal is captured/i, /test suite passes/i, /diff (?:is|shows|review)/i, /implementation (?:addresses|matches|is correct)/i];
-
-function validateMatrixRows(rows: VerificationMatrixRow[]): void {
-  const ids = new Set<string>();
-  for (const row of rows) {
-    if (!/^VM-\d+$/.test(row.id)) throw new Error(`Verification matrix IDs must use VM-* (received ${row.id}). Do not use acceptance criterion IDs.`);
-    if (ids.has(row.id)) throw new Error(`Verification matrix row IDs must be unique: ${row.id}.`);
-    ids.add(row.id);
-    if (!row.behavior.trim() || !row.inputs.trim() || !row.expected.trim()) throw new Error(`${row.id} requires behavior, concrete inputs or conditions, and expected result.`);
-    if (matrixMetaPatterns.some((pattern) => pattern.test(row.behavior))) throw new Error(`${row.id} must describe an observable behavior, not a criterion, diff review, or test-suite status.`);
-  }
-}
-
-function matrixStatus(row: VerificationMatrixRow, evidence: Evidence[]): "passed" | "failed" | "not-run" {
-  const linked = evidence.filter((item) => row.evidence?.includes(item.id));
-  if (!linked.length) return "not-run";
-  return linked.every((item) => item.exit_code === 0) ? "passed" : "failed";
-}
 
 type ToolContext = { cwd?: string };
 type Tool = {
@@ -108,26 +78,11 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
     },
   };
 
-  const addMatrix: Tool = {
-    name: "verify_add_matrix",
-    label: "Add verification matrix",
-    description: "Define the required behavior rows for verification. Link captured evidence later by passing matrix row IDs to verify_add_evidence.",
-    parameters: schema({ rows: { type: "array", minItems: 1, items: schema({ id: { type: "string", pattern: "^VM-\\d+$" }, criterion: { type: "string" }, behavior: { type: "string" }, inputs: { type: "string" }, expected: { type: "string" }, required: { type: "boolean" } }, ["id", "behavior", "inputs", "expected"]) } }, ["rows"]),
-    async execute(_id, params) {
-      const current = state.current;
-      if (!current) throw new Error("No verification run. Call verify_start first.");
-      const rows = params.rows as VerificationMatrixRow[];
-      validateMatrixRows(rows);
-      current.matrix = rows.map((row) => ({ ...row, required: row.required !== false, evidence: row.evidence ?? [] }));
-      return { content: text({ rows: current.matrix }), details: { rows: current.matrix, auditDir: current.auditDir } };
-    },
-  };
-
   const addEvidence: Tool = {
     name: "verify_add_evidence",
     label: "Add verification evidence",
     description: "Run an arbitrary command in the source project and attach its real output and exit code to Agent Audits. Demo version intentionally has no command allowlist or approval step.",
-    parameters: schema({ criterion: { type: "string", description: "Acceptance criterion ID, e.g. AC-001" }, type: { type: "string", description: "Agent Audits evidence type" }, command: { type: "string", description: "Command to execute" }, summary: { type: "string", description: "Short description of the evidence" }, matrixRows: { type: "array", items: { type: "string" }, description: "Verification matrix row IDs covered by this evidence" } }, ["criterion", "type", "command"]),
+    parameters: schema({ criterion: { type: "string", description: "Acceptance criterion ID, e.g. AC-001" }, type: { type: "string", description: "Agent Audits evidence type" }, command: { type: "string", description: "Command to execute" }, summary: { type: "string", description: "Short description of the evidence" } }, ["criterion", "type", "command"]),
     async execute(_id, params) {
       const current = state.current;
       if (!current) throw new Error("No verification run. Call verify_start first.");
@@ -136,14 +91,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
       const entry = (index.evidence as Evidence[]).find((item) => item.id === evidence)!;
       const artifactPath = path.resolve(current.auditDir, entry.artifact_path);
       const output = await readFile(artifactPath, "utf8");
-      const matrixRows = (params.matrixRows ?? []) as string[];
-      for (const rowId of matrixRows) {
-        const row = current.matrix?.find((item) => item.id === rowId);
-        if (!row) throw new Error(`Unknown verification matrix row: ${rowId}`);
-        row.evidence ??= [];
-        if (!row.evidence.includes(evidence)) row.evidence.push(evidence);
-      }
-      const result = { evidence, command: params.command, exitCode: entry.exit_code, artifactPath, output: output.slice(0, 16000), truncated: output.length > 16000, matrixRows, auditDir: current.auditDir };
+      const result = { evidence, command: params.command, exitCode: entry.exit_code, artifactPath, output: output.slice(0, 16000), truncated: output.length > 16000, auditDir: current.auditDir };
       return { content: text(result), details: result };
     },
   };
@@ -205,12 +153,9 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
       const agentReport = await current.audit.report();
       const acceptance = await auditJson(current, "acceptance.json");
       const index = await auditJson(current, "evidence/index.json");
-      const matrix = (current.matrix ?? []).map((row) => ({ ...row, required: row.required !== false, status: matrixStatus(row, index.evidence as Evidence[]) }));
-      const matrixIssues = matrix.filter((row) => row.required && row.status !== "passed").map((row) => `${row.id} is ${row.status}.`);
-      const matrixBlocks = matrixIssues.length > 0;
-      const allowed = agentGate.allowed && !sourceBlocks && !matrixBlocks;
-      const verdict = sourceBlocks || matrixBlocks ? "NOT VERIFIED" : agentGate.verdict;
-      const gate: GateResult = { ...agentGate, agent_audits_verdict: agentGate.verdict, verdict, allowed, source_issues: sourceIssues, matrix_issues: matrixIssues };
+      const allowed = agentGate.allowed && !sourceBlocks;
+      const verdict = sourceBlocks ? "NOT VERIFIED" : agentGate.verdict;
+      const gate: GateResult = { ...agentGate, agent_audits_verdict: agentGate.verdict, verdict, allowed, source_issues: sourceIssues };
       const reviews = await auditJson(current, "reviews.json");
       const checks = (index.evidence as Evidence[]).map((item) => ({
         command: item.command ?? "Not recorded",
@@ -231,7 +176,6 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
         executedTests: checks.filter((check) => (index.evidence as Evidence[]).some((item) => item.id === check.evidence && item.type === "test")),
         criteria: acceptance.criteria,
         evidence: index.evidence,
-        matrix,
         gate,
         artifacts: [{ label: "Agent Audits report", path: agentReport }, ...["acceptance.json", "evidence/index.json", "reviews.json"].map((file) => ({ label: file, path: path.join(current.auditDir, ".agent-audits", file) })), ...(index.evidence as Evidence[]).map((item) => ({ label: item.id, path: path.resolve(current.auditDir, item.artifact_path) }))],
         skipped: params.skipped ?? [],
@@ -245,7 +189,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
     },
   };
 
-  return [start, addMatrix, addEvidence, review, finish];
+  return [start, addEvidence, review, finish];
 }
 
 export function registerVerificationTools(pi: { registerTool: (tool: Tool) => void }, getCwd: () => string, state: VerificationLifecycleState): void {
