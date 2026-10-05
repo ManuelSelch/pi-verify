@@ -55,7 +55,8 @@ test("Markdown renders an executive summary, compact source, simple dates, and f
   }, "/tmp/demo project/reports");
   assert.match(markdown, /## Summary/);
   assert.match(markdown, /1\/1 passed/);
-  assert.match(markdown, /`222222222222` Add numbers/);
+  assert.match(markdown, /Add numbers/);
+  assert.doesNotMatch(markdown, /222222222222/);
   assert.doesNotMatch(markdown, new RegExp("f{64}"));
   assert.match(markdown, /2026-10-05 15:55/);
   assert.doesNotMatch(markdown, /2026-10-05T15:55:32/);

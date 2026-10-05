@@ -91,7 +91,7 @@ export function reportMarkdown(report: VerificationReport, reportDirectory?: str
   } else lines.push("No added or changed tests recorded.");
 
   lines.push("", "## Added commits", "");
-  lines.push(...(commits.length ? commits.map((commit) => `- \`${commit.sha.slice(0, 12)}\` ${tableText(commit.subject)} — ${tableText(commit.author)}, ${simpleDate(commit.authoredAt)}`) : ["No added commits identified."]));
+  lines.push(...(commits.length ? commits.map((commit) => `- ${tableText(commit.subject)} — ${tableText(commit.author)}, ${simpleDate(commit.authoredAt)}`) : ["No added commits identified."]));
 
   lines.push("", "## Evidence", "");
   const evidenceLinks = artifacts.length ? artifacts.map((artifact) => `- **${tableText(artifact.label)}**${artifact.type ? ` (${artifact.type})` : ""}: ${markdownFileLink(artifact.path, reportDirectory, path.basename(artifact.path))}`) : [];
