@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createVerificationTools } from "../src/verify-tools.js";
+import { createVerificationTools, type VerificationLifecycleState } from "../src/verify-tools.js";
 
 test("prompt-first verification uses attach and finish without low-level lifecycle calls", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-addition-demo-"));
@@ -15,7 +15,8 @@ test("prompt-first verification uses attach and finish without low-level lifecyc
     const { promisify } = await import("node:util");
     const exec = promisify(execFile);
     for (const args of [["init", "-b", "main"], ["config", "user.email", "test@example.com"], ["config", "user.name", "Test"], ["add", "."], ["commit", "-m", "add sum demo"]]) await exec("git", args, { cwd: root });
-    const tools = createVerificationTools(() => root, {});
+    const state: VerificationLifecycleState = {};
+    const tools = createVerificationTools(() => root, state);
     const finishTool = tools.find((item) => item.name === "verify_finish")!;
     assert.equal(Object.hasOwn((finishTool.parameters as { properties: object }).properties, "source"), false);
     const call = (name: string, params: unknown) => {
@@ -51,6 +52,13 @@ test("prompt-first verification uses attach and finish without low-level lifecyc
     const markdown = await readFile(details.reportPaths.markdownPath, "utf8");
     assert.match(markdown, /## Summary/);
     assert.match(markdown, /## Evidence/);
+    // The on-disk report keeps relative links for VS Code...
+    assert.match(markdown, /\]\(\.\.\/artifacts\//);
+    // ...while the pi-chat message uses absolute file:// links, because pi-chat
+    // resolves local links against the session project directory.
+    const messageMarkdown = state.pendingReport?.markdown ?? "";
+    assert.match(messageMarkdown, /\]\(file:\/\/.*screenshot\.png\)/);
+    assert.doesNotMatch(messageMarkdown, /\]\(\.\.\/artifacts\//);
     assert.match(report.artifacts[0].path, /screenshot\.png$/);
     await writeFile(path.join(root, "leftover.tmp"), "untracked\n");
     const dirty = await call("verify_finish", { ...summary, goal: "Verify dirty working tree" });
