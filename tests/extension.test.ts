@@ -5,15 +5,15 @@ import { buildVerifyPrompt, emitPendingVerificationReport } from "../src/extensi
 test("verify prompt is composable and task-specific", () => {
   const prompt = buildVerifyPrompt("Fix the login redirect");
   assert.match(prompt, /Task focus: Fix the login redirect/);
-  assert.match(prompt, /verify_start, verify_add_evidence, verify_review, and verify_finish/);
-  assert.match(prompt, /added and modified tests separately/);
+  assert.match(prompt, /ordinary execution and browser tools/);
+  assert.match(prompt, /verify_attach/);
+  assert.match(prompt, /verify_finish/);
+  assert.match(prompt, /added and modified tests from tests executed/i);
   assert.match(prompt, /Do not commit, merge/);
-  assert.match(prompt, /pi-verify-report\.json/);
-  assert.match(prompt, /tests executed/);
+  assert.match(prompt, /committed task changes/);
+  assert.match(prompt, /baseline uncertainty/);
   assert.match(prompt, /Do not manually write or overwrite/);
-  assert.match(prompt, /required evidence types/);
-  assert.match(prompt, /automatically checks the source state/);
-  assert.doesNotMatch(prompt, /branch|baseline|HEAD|fingerprint/i);
+  assert.doesNotMatch(prompt, /verify_start|verify_add_evidence|verify_review/i);
 });
 
 test("emits a completed report once without triggering another turn", () => {
@@ -54,5 +54,15 @@ test("does not emit a report before verify_finish", () => {
 });
 
 test("verify prompt allows the task to be inferred", () => {
-  assert.match(buildVerifyPrompt(""), /Infer the task focus/);
+  assert.match(buildVerifyPrompt("   "), /Infer the task focus/);
+});
+
+test("verify prompt handles docs-only checks and honest failures", () => {
+  const prompt = buildVerifyPrompt("Update docs");
+  assert.match(prompt, /docs-only tasks/);
+  assert.match(prompt, /inspect the real output/i);
+  assert.match(prompt, /failed, skipped, cancelled, timed-out, or unknown/i);
+  assert.match(prompt, /baseline uncertainty/i);
+  assert.match(prompt, /logs and traces may contain secrets/i);
+  assert.match(prompt, /was the task actually validated/i);
 });

@@ -2,7 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import path from "node:path";
 import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
-import { AgentAuditsRun, type GateResult } from "./agent-audits.js";
 import { writeReportBundle, type VerificationReport } from "./report.js";
 import { collectGitScope } from "./git-scope.js";
 
@@ -17,11 +16,6 @@ const text = (value: unknown): Array<{ type: "text"; text: string }> => [
   { type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 2) },
 ];
 
-type Evidence = { id: string; criterion_id: string; type: string; command?: string; exit_code?: number; artifact_path: string; summary?: string };
-async function auditJson(current: VerificationState, file: string): Promise<any> {
-  return JSON.parse(await readFile(path.join(current.auditDir, ".agent-audits", file), "utf8"));
-}
-
 function projectKey(projectDir: string): string {
   const name = path.basename(projectDir) || "project";
   const suffix = createHash("sha1").update(projectDir).digest("hex").slice(0, 8);
@@ -31,10 +25,8 @@ function projectKey(projectDir: string): string {
 export type VerificationArtifact = { label: string; path: string; type: string; description?: string; sha256: string; size: number };
 
 export type VerificationState = {
-  goal: string;
   projectDir: string;
-  auditDir: string;
-  audit: AgentAuditsRun;
+  reportDir: string;
   attachments: VerificationArtifact[];
 };
 
@@ -62,95 +54,61 @@ type Tool = {
   execute: (toolCallId: string, params: any, signal: AbortSignal, onUpdate: unknown, ctx: ToolContext) => Promise<{ content: Array<{ type: "text"; text: string }>; details: unknown }>;
 };
 
+function ensureCurrentState(state: VerificationLifecycleState, getCwd: () => string, ctx?: ToolContext): VerificationState {
+  const projectDir = path.resolve(ctx?.cwd || getCwd());
+  if (state.current) return state.current;
+  const runId = `${new Date().toISOString().replaceAll(/[-:.TZ]/g, "").slice(0, 14)}-${randomUUID()}`;
+  const reportDir = path.join(homedir(), ".pi", "agent", "verify", projectKey(projectDir), runId);
+  const current: VerificationState = { projectDir, reportDir, attachments: [] };
+  state.current = current;
+  return current;
+}
+
+function deriveVerdict(checks: Array<{ outcome: string }> = []): string {
+  if (!checks.length) return "UNKNOWN";
+  if (checks.some((check) => check.outcome === "failed")) return checks.some((check) => check.outcome === "passed" || check.outcome === "skipped") ? "PARTIAL" : "FAILED";
+  if (checks.every((check) => check.outcome === "passed" || check.outcome === "skipped")) return "VERIFIED";
+  return "PARTIAL";
+}
+
 export function createVerificationTools(getCwd: () => string, state: VerificationLifecycleState): Tool[] {
-  const start: Tool = {
-    name: "verify_start",
-    label: "Start verification",
-    description: "Create an isolated durable Agent Audits run and generate task-specific acceptance criteria.",
-    parameters: schema({ goal: { type: "string", description: "The task being verified" } }, ["goal"]),
-    async execute(_id, params, _signal, _onUpdate, ctx) {
-      const projectDir = path.resolve(ctx.cwd || getCwd());
-      const runId = `${new Date().toISOString().replaceAll(/[-:.TZ]/g, "").slice(0, 14)}-${randomUUID()}`;
-      const auditDir = path.join(homedir(), ".pi", "agent", "audits", projectKey(projectDir), runId);
-      const audit = new AgentAuditsRun(projectDir, auditDir);
-      await audit.init();
-      await audit.plan(params.goal);
-      const acceptance = JSON.parse(await readFile(path.join(auditDir, ".agent-audits", "acceptance.json"), "utf8"));
-      state.current = { goal: params.goal, projectDir, auditDir, audit, attachments: [] };
-      return { content: text({ auditDir, acceptance }), details: { auditDir, acceptance } };
-    },
-  };
-
-  const addEvidence: Tool = {
-    name: "verify_add_evidence",
-    label: "Add verification evidence",
-    description: "Run an arbitrary command in the source project and attach its real output and exit code to Agent Audits. Demo version intentionally has no command allowlist or approval step.",
-    parameters: schema({ criterion: { type: "string", description: "Acceptance criterion ID, e.g. AC-001" }, type: { type: "string", description: "Agent Audits evidence type" }, command: { type: "string", description: "Command to execute" }, summary: { type: "string", description: "Short description of the evidence" } }, ["criterion", "type", "command"]),
-    async execute(_id, params) {
-      const current = state.current;
-      if (!current) throw new Error("No verification run. Call verify_start first.");
-      const evidence = await current.audit.addCommandEvidence(params.criterion, params.type, params.command, { summary: params.summary });
-      const index = await auditJson(current, "evidence/index.json");
-      const entry = (index.evidence as Evidence[]).find((item) => item.id === evidence)!;
-      const artifactPath = path.resolve(current.auditDir, entry.artifact_path);
-      const output = await readFile(artifactPath, "utf8");
-      const result = { evidence, command: params.command, exitCode: entry.exit_code, artifactPath, output: output.slice(0, 16000), truncated: output.length > 16000, auditDir: current.auditDir };
-      return { content: text(result), details: result };
-    },
-  };
-
   const attach: Tool = {
     name: "verify_attach",
     label: "Attach verification artifact",
     description: "Copy a screenshot, log, video, Playwright trace, or other existing file into the durable verification bundle.",
     parameters: schema({ path: { type: "string", description: "Existing artifact path" }, type: { type: "string", enum: ["screenshot", "log", "video", "playwright-trace", "file"] }, label: { type: "string" }, description: { type: "string" } }, ["path", "type", "label"]),
-    async execute(_id, params) {
-      const current = state.current;
-      if (!current) throw new Error("No verification run. Call verify_start first.");
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const current = ensureCurrentState(state, getCwd, ctx);
       const source = path.resolve(current.projectDir, params.path);
       const sourceStat = await stat(source);
       if (!sourceStat.isFile()) throw new Error(`Artifact is not a file: ${source}`);
       const bytes = await readFile(source);
       const digest = createHash("sha256").update(bytes).digest("hex");
       const filename = `${randomUUID()}-${path.basename(source)}`;
-      const destination = path.join(current.auditDir, "artifacts", filename);
+      const destination = path.join(current.reportDir, "artifacts", filename);
       await mkdir(path.dirname(destination), { recursive: true });
       await copyFile(source, destination);
       const artifact = { label: params.label, path: destination, type: params.type, description: params.description, sha256: digest, size: sourceStat.size };
       current.attachments.push(artifact);
-      return { content: text({ ...artifact, source }), details: { ...artifact, source, auditDir: current.auditDir } };
-    },
-  };
-
-  const review: Tool = {
-    name: "verify_review",
-    label: "Review verification evidence",
-    description: "Record an explicit self-review against an acceptance criterion. Inspect the captured output/artifact first; success alone does not prove the criterion.",
-    parameters: schema({ criterion: { type: "string" }, evidence: { type: "string" }, verdict: { type: "string", enum: ["supports", "does-not-support", "unclear"] }, notes: { type: "string", minLength: 1 } }, ["criterion", "evidence", "verdict", "notes"]),
-    async execute(_id, params) {
-      const current = state.current;
-      if (!current) throw new Error("No verification run. Call verify_start first.");
-      await current.audit.review(params.criterion, params.evidence, params.verdict, params.notes);
-      const result = { ...params, kind: "self-review", auditDir: current.auditDir };
-      return { content: text(result), details: result };
+      return { content: text({ ...artifact, source }), details: { ...artifact, source, reportDir: current.reportDir } };
     },
   };
 
   const finish: Tool = {
     name: "verify_finish",
     label: "Finish verification",
-    description: "Run the Agent Audits gate and create the durable pi-verify JSON and Markdown reports.",
+    description: "Create the durable verification report from the task summary, checks, tests, and optional attachments.",
     parameters: schema({
+      goal: { type: "string", description: "Short task description to record in the report" },
       changes: { type: "array", items: schema({ file: { type: "string" }, summary: { type: "string" } }, ["file", "summary"]) },
-      tests: { type: "array", description: "Agent-authored added/modified tests, not executed commands. Use unknown unless named runner output supports an outcome.", items: schema({ name: { type: "string" }, file: { type: "string" }, behavior: { type: "string" }, outcome: { type: "string", enum: ["passed", "failed", "skipped", "unknown"] }, evidence: { type: "array", items: { type: "string" } } }, ["name", "file", "behavior", "outcome"]) },
+      tests: { type: "array", description: "Added or modified tests, separate from checks run.", items: schema({ name: { type: "string" }, file: { type: "string" }, behavior: { type: "string" }, outcome: { type: "string", enum: ["passed", "failed", "skipped", "unknown"] }, evidence: { type: "array", items: { type: "string" } } }, ["name", "file", "behavior", "outcome"]) },
+      checks: { type: "array", description: "Concrete validation commands or inspections run for this task.", items: schema({ command: { type: "string" }, cwd: { type: "string" }, outcome: { type: "string", enum: ["passed", "failed", "skipped", "cancelled", "timed-out", "unknown"] }, exitCode: { type: "number" }, note: { type: "string" } }, ["command", "outcome"]) },
       skipped: { type: "array", items: { type: "string" } },
       limitations: { type: "array", items: { type: "string" } },
-    }),
-    async execute(_id, params) {
-      const current = state.current;
-      if (!current) throw new Error("No verification run. Call verify_start first.");
-      const agentGate: GateResult = await current.audit.check();
-      let source: Record<string, unknown>;
+    }, ["goal"]),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const current = ensureCurrentState(state, getCwd, ctx);
+      let source: Record<string, unknown> = { repository: current.projectDir, git: false, note: "No Git metadata was collected." };
       let commits: VerificationReport["commits"] = [];
       const sourceIssues: string[] = [];
       try {
@@ -175,47 +133,40 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
         source = { repository: current.projectDir, git: false, error: message };
         sourceIssues.push("Git source state and untracked files could not be verified.");
       }
-      const sourceBlocks = sourceIssues.some((issue) => issue.startsWith("Untracked") || issue.startsWith("Git source"));
-      const agentReport = await current.audit.report();
-      const acceptance = await auditJson(current, "acceptance.json");
-      const index = await auditJson(current, "evidence/index.json");
-      const allowed = agentGate.allowed && !sourceBlocks;
-      const verdict = sourceBlocks ? "NOT VERIFIED" : agentGate.verdict;
-      const gate: GateResult = { ...agentGate, agent_audits_verdict: agentGate.verdict, verdict, allowed, source_issues: sourceIssues };
-      const reviews = await auditJson(current, "reviews.json");
-      const checks = (index.evidence as Evidence[]).map((item) => ({
-        command: item.command ?? "Not recorded",
-        cwd: current.projectDir,
-        outcome: item.exit_code === undefined ? "unknown" as const : item.exit_code === 0 ? "passed" as const : "failed" as const,
-        exitCode: item.exit_code,
-        evidence: item.id,
-        note: item.summary,
-      }));
+      const checks = Array.isArray(params.checks) ? params.checks : [];
       const report: VerificationReport = {
-        goal: current.goal,
-        verdict,
+        goal: params.goal,
+        verdict: deriveVerdict(checks),
         source,
         commits,
         changes: params.changes ?? [],
-        tests: (params.tests ?? []).map((item: object) => ({ ...item, source: "agent-authored" })),
-        checks,
-        executedTests: checks.filter((check) => (index.evidence as Evidence[]).some((item) => item.id === check.evidence && item.type === "test")),
-        criteria: acceptance.criteria,
-        evidence: index.evidence,
-        gate,
-        artifacts: [{ label: "Agent Audits report", path: agentReport }, ...["acceptance.json", "evidence/index.json", "reviews.json"].map((file) => ({ label: file, path: path.join(current.auditDir, ".agent-audits", file) })), ...(index.evidence as Evidence[]).map((item) => ({ label: item.id, path: path.resolve(current.auditDir, item.artifact_path) })), ...current.attachments],
+        tests: (params.tests ?? []).map((item: Record<string, unknown>) => ({
+          name: String(item.name ?? "unknown"),
+          file: String(item.file ?? "unknown"),
+          behavior: String(item.behavior ?? ""),
+          outcome: (item.outcome as any) ?? "unknown",
+          evidence: Array.isArray(item.evidence) ? item.evidence.map(String) : undefined,
+          source: "agent-authored",
+        })),
+        checks: checks.map((item: Record<string, unknown>) => ({
+          command: String(item.command ?? "unknown"),
+          cwd: typeof item.cwd === "string" ? item.cwd : current.projectDir,
+          outcome: (item.outcome as any) ?? "unknown",
+          exitCode: typeof item.exitCode === "number" ? item.exitCode : undefined,
+          note: typeof item.note === "string" ? item.note : undefined,
+        })),
+        artifacts: current.attachments,
         skipped: params.skipped ?? [],
-        limitations: ["Command execution is unrestricted in this demo.", "Change summaries and test inventory are agent-authored.", ...sourceIssues, ...params.limitations ?? []],
-        review: { kind: "self-review", source: "Agent Audits", allowed: gate.allowed, processExitCode: gate.process_exit_code, records: reviews },
+        limitations: [...(params.limitations ?? []), ...sourceIssues],
       };
-      const reportPaths = await writeReportBundle(path.join(current.auditDir, ".agent-audits", "reports"), report);
+      const reportPaths = await writeReportBundle(path.join(current.reportDir, "reports"), report);
       const markdown = await readFile(reportPaths.markdownPath, "utf8");
-      state.pendingReport = { markdown, ...reportPaths, auditDir: current.auditDir, verdict, allowed };
-      return { content: text({ verdict, allowed, source, commits, reportPaths, auditDir: current.auditDir }), details: { verdict, allowed, gate, source, commits, reportPaths, auditDir: current.auditDir } };
+      state.pendingReport = { markdown, ...reportPaths, auditDir: current.reportDir, verdict: report.verdict, allowed: report.verdict !== "FAILED" && report.verdict !== "PARTIAL" ? true : false };
+      return { content: text({ verdict: report.verdict, allowed: state.pendingReport.allowed, reportPaths, reportDir: current.reportDir }), details: { verdict: report.verdict, allowed: state.pendingReport.allowed, reportPaths, reportDir: current.reportDir } };
     },
   };
 
-  return [start, addEvidence, attach, review, finish];
+  return [attach, finish];
 }
 
 export function registerVerificationTools(pi: { registerTool: (tool: Tool) => void }, getCwd: () => string, state: VerificationLifecycleState): void {
