@@ -1,165 +1,64 @@
-# pi-verify — requirements and implementation plan
-
-Status: backend, report renderer, `/verify`, and four verification lifecycle tools implemented. Full v1 scope/freshness and artifact features remain incomplete.
-
-## Latest implementation slice
-
-- Added explicit `verify_review` self-reviews.
-- `verify_finish` assembles criteria, evidence, command outcomes, review records, gate issues, and artifact references automatically; agent-authored context is supplied as optional parameters.
-- `/verify` forbids manual report overwrites and requires matching acceptance evidence types.
-- A disposable addition-project tool integration test covers missing/supporting/rejecting reviews, failed command evidence, and repeat finishes.
-- `verify_finish` now derives Git source metadata, rejects untracked files, and lists commits since an automatically detected baseline. Worktree branch creation reflogs are preferred, then the primary-worktree merge-base; initial commits use the empty tree.
-- Markdown now has an executive summary, compact source state, concise checks linked to full evidence logs, short relative artifact links, and simplified commit dates. Exact commands and absolute artifact paths remain in JSON/evidence instead of Markdown tables.
-- The package registers tracked `src/extension.ts` directly, avoiding stale ignored `dist/` output after Git-package reloads.
-- After `verify_finish`, the extension emits the generated report once as a displayed `pi-verify-report` custom message at `agent_end`, without triggering another model turn.
-- Added `verify_attach` for durable screenshots, logs, videos, Playwright traces, and other file artifacts; the concise Markdown report lists them while JSON preserves metadata.
-- Later report freshness rechecking, independent review, automatic test inventory, and live Pi/pi-chat smoke tests remain unimplemented or unvalidated.
+# pi-verify Simplified Flow — Requirements
 
 ## Goal
+Replace the criterion/evidence/review lifecycle with a prompt-first verification workflow. `/verify` gives the agent a clear structure for inspecting the task and running relevant tests with its ordinary tools. Optional screenshots and other high-level information accompany a short, useful report for the user.
 
-An optional `/verify` command for Pi and pi-chat that collects task evidence and produces a small, readable verification report. Use Agent Audits as the evidence backend rather than rebuilding its criterion/evidence/review gate.
+This plan supersedes the previous Agent Audits implementation plan. The existing backend and lifecycle tools are implemented, but are not requirements for the simplified flow. This document plans changes only; it does not claim they are implemented.
 
-Sessions are disposable working context. Reports and evidence must survive session deletion and worktree removal.
+## Scope
+### In Scope
+- `/verify` and `/verify <task focus>` as explicit, optional entry points.
+- A focused prompt covering task scope, relevant checks, actual execution, result inspection, optional attachments, and a concise report.
+- Removal of low-level verification tools and their required criterion/evidence/review bookkeeping.
+- High-level attachment and report publishing, with durable local storage.
+- Honest reporting of failures, skipped checks, uncertainty, and self-review.
+- Pi TUI and pi-chat compatibility without custom terminal UI.
+- Regression tests and documentation for the simplified contract.
 
-## Scope and principles
+### Out of Scope
+- Automatic completion interception or verification on every coding task.
+- Formal acceptance gates, independent verifier agents, audit receipts, and criterion-by-criterion reviews.
+- Global tool-event recording, automatic test discovery, and universal runner-output parsing.
+- Dashboards, remote storage, automatic cleanup, and comprehensive secret redaction.
+- Implicit commit, merge, worktree removal, repository-ref changes, or session deletion.
 
-- Composable: works independently of `/todo`, `/worktree`, planning, and cleanup.
-- No mandatory lifecycle. A small task can skip planning, browser checks, or independent review.
-- Verification is not user acceptance, approval to merge, or permission to clean up.
-- Only run when explicitly invoked; no automatic completion interception in v1.
-- Report actual evidence, including failures, skipped checks, and uncertainty. Never turn a model assertion into a successful command result.
-- Keep v1 small: one slash command, an agent workflow instruction, a local evidence bundle, and a custom report renderer. No global tool-event recorder or plugin framework.
+## Requirements
+- `/verify` works without `/todo`, `/worktree`, a requirements document, or a separate run-start tool call. An optional argument narrows the task focus; otherwise the agent uses the conversation and repository context.
+- The prompt structures the work as: identify the task and relevant changes; select checks; execute them; inspect results; attach useful material when applicable; publish the report. Ask a focused question only when ambiguity prevents meaningful verification.
+- The agent inspects committed task changes as well as staged, unstaged, and relevant untracked files. It acknowledges unrelated changes and baseline uncertainty rather than silently treating `git diff` against HEAD as the whole task.
+- Checks run through the agent's ordinary execution/browser tools under normal host permissions, not a verification-specific command wrapper. No acceptance IDs, evidence IDs, evidence-type matching, or explicit review records are required.
+- Remove `verify_start`, `verify_add_evidence`, and `verify_review` from the public tool surface. Do not replace them with renamed tools that impose the same bookkeeping.
+- Proposed remaining surface: `verify_attach` for copying existing artifacts and `verify_finish` for publishing a structured summary. Both operate without an explicit start call; `/verify` establishes any minimal report context internally. See Open Questions for final surface approval.
+- Attachments are optional. Screenshots, logs, videos, traces, and other files can have a short label and description. The extension preserves copies and portable links; it does not require a separate semantic-review call. Attaching a screenshot alone does not prove a behavior passed.
+- The publishing operation formats submitted high-level results; it does not rerun checks, require an external gate, or manufacture command outcomes. Execution results are agent-reported from observed tool output and labeled accordingly, not presented as independently captured audit receipts.
+- Publish a short Markdown report with: task and outcome; brief change summary; checks actually run and observed results; useful attachments; failures, skipped checks, and limitations. Exact commands and available exit codes may live in compact check entries/JSON rather than dominating the report.
+- Distinguish passed, failed, and incomplete verification. A failure or incomplete check still produces a useful report; skipped, cancelled, timed-out, or unknown results never become passes. A clean working tree is not a prerequisite for reporting successful checks.
+- Mention added/modified tests separately from executed checks when relevant. Do not infer individual test outcomes from a suite exit code. Detailed per-test inventory is optional, not a mandatory report ritual.
+- Include minimal source context and timestamp when available. Disclose scope uncertainty and source changes during checks; do not claim a final source state was checked when it was not. Automated fingerprints and later freshness rechecking are deferred.
+- Store reports and copied attachments outside disposable worktrees/sessions in collision-resistant run directories. Preserve existing reports and bundles; do not rewrite historical Agent Audits data. Retain a versioned JSON companion if structured publishing remains, and document any schema change.
+- Display each published report once in Pi/pi-chat without triggering another model turn. An interrupted workflow must not display a fabricated completion report.
+- Only include deliberately selected artifacts. Warn that logs/traces may contain secrets; never commit raw evidence or machine-specific logs automatically.
+- Proposed simplification: remove the Agent Audits CLI/Python dependency and active gate adapter, rather than hiding its lifecycle behind ordinary shell commands. The default workflow must not need an installed audit backend. See Open Questions.
 
-## User experience
+## Assumptions
+- Two high-level tools, attachment and report publishing, are acceptable; the user explicitly objects to low-level tools rather than all tools.
+- Agent-authored summaries of observed tool results are sufficient for this lightweight workflow; mechanically proven audit verdicts are no longer the goal.
+- Durable reports, optional structured JSON, and the existing report display are worth retaining even though verification orchestration becomes prompt-only.
+- Existing historical bundles remain readable as files; no migration or regeneration is required.
 
-```text
-/verify
-/verify Fix calculator addition
-```
+## Implementation Plan
+### 1. Prompt-First Contract
+Description: Rewrite the `/verify` workflow instructions and focused command tests around ordinary tool execution, result inspection, optional attachments, and concise reporting. Remove all criterion/evidence/review instructions. Verify prompt tests cover normal tasks, docs-only tasks, failures, and absent task arguments. This defines the new behavior before changing storage or tools.
 
-1. Establish the task goal, repository, and comparison baseline from the current conversation and Git state.
-2. Ask a focused question if the goal, baseline, or verification commands are ambiguous. No compulsory questionnaire.
-3. Inspect changes, propose/select appropriate checks, then execute safe checks under normal Pi approval policies.
-4. Collect evidence, inspect it, and record explicit reviews through Agent Audits.
-5. Generate a Markdown report and structured companion JSON; show the verdict, limitations, and output location in chat.
+### 2. High-Level Report and Attachments
+Description: Following slice 1, adapt report publishing and artifact copying to need no explicit start call or audit workspace. Create minimal run context internally and consume compact agent-authored check results, summaries, skipped checks, and limitations. Preserve durable copies, optional JSON, and one-time report display. Verify attachment-first/report-only workflows, missing files, isolated repeated runs, failures/incomplete results, and interrupted runs. Existing low-level tools may remain temporarily until slice 3, but the new flow must not depend on them.
 
-Commands should work in Pi TUI and pi-chat without custom terminal UI. If clarification is needed but supported UI is unavailable, explain what is missing instead of guessing. Busy-session behavior must be checked against the installed Pi API; avoid overlapping verification runs.
+### 3. Remove Audit Lifecycle
+Description: Following slice 2 and confirmation of the backend decision, stop registering `verify_start`, `verify_add_evidence`, and `verify_review`; remove unused Agent Audits execution/gate code, obsolete schemas, and backend-dependent tests. Simplify source metadata to report context rather than a clean-tree gate. Verify the exact remaining public surface and run the suite without Agent Audits installed. Leave historical bundles untouched.
 
-## Required report
+### 4. Validate and Document
+Description: Following slice 3, update README installation, workflow, tool contracts, storage, report examples, and limitations. Run regression tests and real Pi TUI/pi-chat smoke checks for a passing code task, a failed or incomplete task, a docs-only task, and a task with a screenshot. Verify short reports, honest outcomes, portable attachment links, one-time display, and no low-level bookkeeping or external backend requirement.
 
-- Task goal and short implementation summary.
-- Changed production files and what changed in each.
-- Added and modified tests: test ID/name, file, tested behavior, and observed result when available.
-- Checks actually run: command, working directory, exit code, evidence reference.
-- Screenshots, browser evidence, traces, and logs when applicable.
-- Checks skipped or unavailable, with reasons.
-- Agent Audits verdict and explicit limitations, including whether review was self-review or independent.
-- Verification scope: baseline ref/SHA, checked HEAD, working-tree fingerprint, timestamp.
-
-Keep “tests changed” separate from “tests executed.” A passing suite alone does not establish that new tests were added or that all acceptance criteria are covered. Unknown outcomes must remain unknown; absence of newly added tests is not automatically a failure.
-
-## Git scope and freshness
-
-- Include task commits since the selected baseline, staged/unstaged changes, and relevant untracked files; do not silently use only `git diff`.
-- Do not default blindly to HEAD: that misses already committed task changes. Resolve and record a baseline; ask when uncertain.
-- Avoid including unrelated changes without acknowledging them.
-- Snapshot source state before and after checks. Exclude generated verification output and normal build/test artifacts from the source fingerprint.
-- If source state changes during verification, stop short of a current VERIFIED handoff and require recollection of affected evidence.
-- A historical report remains historical. When rerunning or checking a report, a different source fingerprint means stale evidence; artifact hashes alone do not prove source freshness.
-
-## Agent Audits integration
-
-- External dependency: installed `agent-audits` CLI and its Python runtime. Preflight with actionable errors; never auto-install packages globally.
-- Pin/document the tested CLI version or commit. Verify the installed schema and behavior before building the adapter.
-- Define/edit task-specific acceptance criteria rather than forcing every task into the generated bug-fix template.
-- Capture commands through `add-evidence --command` so actual output and exit codes are recorded. Do not supply invented exit codes or fabricate artifacts.
-- Attach existing files as evidence only when their origin is known; preserve copies inside the durable bundle.
-- Inspect artifacts before recording `supports`, `does-not-support`, or `unclear`; self-review must be labeled.
-- Preserve expected red-phase failures as reproduction evidence, distinct from final passing checks.
-- Read `check --json`, acceptance criteria, evidence index, reviews, and referenced artifacts. The gate JSON is not a full report API.
-- Preserve unsuccessful gate results and still produce a useful report. Missing evidence or nonzero checks must not terminate the workflow before reporting.
-- Never overwrite an existing `.agent-audits` workspace with `init --force`. Validate how to isolate separate runs with the installed CLI before implementation; if no alternate workspace is supported, execute it in a run bundle using explicit source-repository command working directories, and verify this arrangement in a spike.
-
-## Test inventory: v1
-
-The agent inspects the scoped Git patch and test source, then supplies structured added/modified-test entries with file references and behavior descriptions. Execution results are linked to named tests in captured runner output where possible; otherwise report `unknown` or only suite-level results.
-
-The renderer consumes this inventory without inventing entries. Label descriptions/classification as agent-authored, not mechanically proven. Framework-specific JSON/JUnit parsing and AST-based inventory are deferred.
-
-## Durable storage and data
-
-Proposed default: `~/.pi/agent/verification/<project-key>/<run-id>/`, outside disposable worktrees. Use collision-resistant project/run identities. Make the root configurable through one documented setting or environment variable.
-
-```text
-<run>/
-  report.md
-  report.json
-  .agent-audits/       # criteria, evidence, reviews, gate receipts
-  artifacts/          # copied screenshots, traces, additional logs
-```
-
-Minimal report JSON has a schema version, goal, source scope/fingerprint, change summary, test inventory, checks, artifact references, review provenance, gate verdict, skipped checks, and limitations. Link to local bundle-relative evidence paths. Validate references and shape before rendering Markdown.
-
-Do not assume Agent Audits ignores its workspace automatically; inspect the installed version. Do not commit raw evidence, secrets, or machine-specific logs without explicit user intent. Exclude sensitive files from automatic collection and warn that logs/traces may contain secrets; v1 does not promise comprehensive redaction.
-
-## Implementation plan
-
-### 1. Backend integration spike
-
-- Reuse the disposable calculator demo pattern using built-in `unittest`.
-- Prove isolated run storage, source-repo command execution, actual failed/passed exit capture, artifact copying, gate JSON, and report generation.
-- Check missing dependency, existing workspace, failed gate, and expected TDD failure cases.
-- Output: tested commands and a fixture bundle; no extension yet.
-
-### 2. Report model and renderer
-
-- Define the small versioned JSON shape and validation.
-- Render required sections with relative evidence links.
-- Test added/modified/no tests, unknown results, missing artifacts, failures, skips, and self-review labeling.
-- Output: a custom report from the spike bundle.
-
-### 3. Minimal Pi package and `/verify`
-
-- Add `package.json` with an explicit Pi extension entry and host-provided peer dependencies.
-- Register `/verify`; inject focused workflow instructions using the installed Pi command/message APIs.
-- Let the agent use its existing tools for Git inspection, check selection, CLI evidence collection, and inventory authoring. Add no new orchestration tools unless the spike demonstrates a concrete need.
-- Provide a small local report-rendering helper; avoid nested model calls and custom terminal components.
-- Display final verdict and durable report paths in chat.
-- Keep execution/storage/rendering logic independent of UI.
-
-### 4. Verification and documentation
-
-- Regression tests for command registration/instructions, scope/freshness handling, backend errors, and report rendering.
-- Real smoke tests: bug fix, docs-only task, UI task with an existing screenshot/trace.
-- Verify invocation in both Pi TUI and pi-chat, including missing UI/dependency behavior.
-- Document installation, external CLI requirement, sample output, storage, limitations, and manual artifact removal.
-
-## Acceptance criteria for v1
-
-- `/verify` works without `/todo` or `/worktree` and without a preexisting plan.
-- Calculator demo report lists all four added tests and their actual observed outcomes.
-- Docs-only tasks can use relevant file/diff evidence without requiring unrelated tests.
-- UI evidence can be attached and linked; semantic interpretation is labeled as reviewer judgment.
-- Failed, cancelled, timed-out, and skipped checks are not represented as successful checks.
-- Reports identify the verified source state and refuse a current-success claim when that state changes.
-- Separate verification runs do not overwrite each other's evidence or existing project audit state.
-- Reports/evidence remain usable after session deletion and removal of the source worktree.
-- No implicit merge, commit, branch deletion, worktree removal, or session deletion.
-
-## Deferred
-
-Independent verifier agents; automatic event-log collection/Agent Audit Gate integration; universal test parsers; dashboard; task status machine; automatic cleanup; remote artifact storage; cryptographic audit receipts.
-
-## Decisions to validate in the spike
-
-- Exact CLI workspace isolation and command working-directory behavior.
-- How Agent Audits treats repeated reviews, failed historical evidence, and report generation when the gate fails.
-- Smallest reliable source fingerprint and baseline selection behavior.
-- pi-chat support for the selected command/message/clarification path.
-
-## References
-
-- Agent Audits: https://github.com/aiswarya797/agent-audits
-- Agent Audit Gate (ideas only): https://github.com/Wanbinyu/agent-audit-gate
-- Pi extension docs: installed `@earendil-works/pi-coding-agent/docs/extensions.md`
-- Pi package docs: installed `@earendil-works/pi-coding-agent/docs/packages.md`
+## Open Questions
+1. Should we remove Agent Audits entirely from the active implementation, rather than keep it as an optional backend? Recommended: remove it.
+2. Should the remaining public tools be `verify_attach` and `verify_finish`, or should attachments be submitted directly in a single report-publishing call? Recommended: keep the two high-level tools.
