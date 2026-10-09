@@ -28,7 +28,7 @@ This plan supersedes the previous Agent Audits implementation plan. The existing
 - The agent inspects committed task changes as well as staged, unstaged, and relevant untracked files. It acknowledges unrelated changes and baseline uncertainty rather than silently treating `git diff` against HEAD as the whole task.
 - Checks run through the agent's ordinary execution/browser tools under normal host permissions, not a verification-specific command wrapper. No acceptance IDs, evidence IDs, evidence-type matching, or explicit review records are required.
 - Remove `verify_start`, `verify_add_evidence`, and `verify_review` from the public tool surface. Do not replace them with renamed tools that impose the same bookkeeping.
-- Proposed remaining surface: `verify_attach` for copying existing artifacts and `verify_finish` for publishing a structured summary. Both operate without an explicit start call; `/verify` establishes any minimal report context internally. See Open Questions for final surface approval.
+- Keep exactly two public verification tools: `verify_attach` for copying existing artifacts and `verify_finish` for publishing a structured summary. Both operate without an explicit start call; `/verify` establishes any minimal report context internally.
 - Attachments are optional. Screenshots, logs, videos, traces, and other files can have a short label and description. The extension preserves copies and portable links; it does not require a separate semantic-review call. Attaching a screenshot alone does not prove a behavior passed.
 - The publishing operation formats submitted high-level results; it does not rerun checks, require an external gate, or manufacture command outcomes. Execution results are agent-reported from observed tool output and labeled accordingly, not presented as independently captured audit receipts.
 - Publish a short Markdown report with: task and outcome; brief change summary; checks actually run and observed results; useful attachments; failures, skipped checks, and limitations. Exact commands and available exit codes may live in compact check entries/JSON rather than dominating the report.
@@ -38,10 +38,9 @@ This plan supersedes the previous Agent Audits implementation plan. The existing
 - Store reports and copied attachments outside disposable worktrees/sessions in collision-resistant run directories. Preserve existing reports and bundles; do not rewrite historical Agent Audits data. Retain a versioned JSON companion if structured publishing remains, and document any schema change.
 - Display each published report once in Pi/pi-chat without triggering another model turn. An interrupted workflow must not display a fabricated completion report.
 - Only include deliberately selected artifacts. Warn that logs/traces may contain secrets; never commit raw evidence or machine-specific logs automatically.
-- Proposed simplification: remove the Agent Audits CLI/Python dependency and active gate adapter, rather than hiding its lifecycle behind ordinary shell commands. The default workflow must not need an installed audit backend. See Open Questions.
+- Remove Agent Audits completely from the active implementation, including its CLI/Python dependency, adapter, and gate integration. Do not retain an optional backend or hide its lifecycle behind ordinary shell commands. Verification must work without Agent Audits installed.
 
 ## Assumptions
-- Two high-level tools, attachment and report publishing, are acceptable; the user explicitly objects to low-level tools rather than all tools.
 - Agent-authored summaries of observed tool results are sufficient for this lightweight workflow; mechanically proven audit verdicts are no longer the goal.
 - Durable reports, optional structured JSON, and the existing report display are worth retaining even though verification orchestration becomes prompt-only.
 - Existing historical bundles remain readable as files; no migration or regeneration is required.
@@ -54,11 +53,10 @@ Description: Rewrite the `/verify` workflow instructions and focused command tes
 Description: Following slice 1, adapt report publishing and artifact copying to need no explicit start call or audit workspace. Create minimal run context internally and consume compact agent-authored check results, summaries, skipped checks, and limitations. Preserve durable copies, optional JSON, and one-time report display. Verify attachment-first/report-only workflows, missing files, isolated repeated runs, failures/incomplete results, and interrupted runs. Existing low-level tools may remain temporarily until slice 3, but the new flow must not depend on them.
 
 ### 3. Remove Audit Lifecycle
-Description: Following slice 2 and confirmation of the backend decision, stop registering `verify_start`, `verify_add_evidence`, and `verify_review`; remove unused Agent Audits execution/gate code, obsolete schemas, and backend-dependent tests. Simplify source metadata to report context rather than a clean-tree gate. Verify the exact remaining public surface and run the suite without Agent Audits installed. Leave historical bundles untouched.
+Description: Following slice 2, stop registering `verify_start`, `verify_add_evidence`, and `verify_review`; remove unused Agent Audits execution/gate code, obsolete schemas, and backend-dependent tests. Simplify source metadata to report context rather than a clean-tree gate. Verify the exact remaining public surface and run the suite without Agent Audits installed. Leave historical bundles untouched.
 
 ### 4. Validate and Document
 Description: Following slice 3, update README installation, workflow, tool contracts, storage, report examples, and limitations. Run regression tests and real Pi TUI/pi-chat smoke checks for a passing code task, a failed or incomplete task, a docs-only task, and a task with a screenshot. Verify short reports, honest outcomes, portable attachment links, one-time display, and no low-level bookkeeping or external backend requirement.
 
 ## Open Questions
-1. Should we remove Agent Audits entirely from the active implementation, rather than keep it as an optional backend? Recommended: remove it.
-2. Should the remaining public tools be `verify_attach` and `verify_finish`, or should attachments be submitted directly in a single report-publishing call? Recommended: keep the two high-level tools.
+None.
