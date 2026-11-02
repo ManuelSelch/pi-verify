@@ -18,7 +18,9 @@ test("compares committed revisions, reporting an absent historical diagram and e
   mkdirSync(path.join(dir, "docs"), { recursive: true }); mkdirSync(path.join(dir, "src/review-report/domain"), { recursive: true });
   writeFileSync(path.join(dir, "docs/conceptual-model.drawio"), readFileSync("docs/conceptual-model.drawio"));
   writeFileSync(path.join(dir, "src/review-report/domain/model.ts"), readFileSync("src/review-report/domain/model.ts"));
-  git("add", "docs", "src"); git("commit", "-qm", "model");
+  mkdirSync(path.join(dir, ".pi"), { recursive: true });
+  writeFileSync(path.join(dir, ".pi/conceptual-model.json"), readFileSync(".pi/conceptual-model.json"));
+  git("add", "docs", "src", ".pi"); git("commit", "-qm", "model");
   const target = git("rev-parse", "HEAD");
   writeFileSync(path.join(dir, "docs/conceptual-model.drawio"), "loose edit");
   const review = await collectConceptualModel(dir, base, target);
