@@ -1,6 +1,6 @@
 # Supercov TypeScript per-test coverage spike
 
-Standalone experiment; **not integrated into pi-verify or `/verify`**. Supercov is only the collection adapter. HTML consumes a collector-neutral version-1 evidence model that can later be populated by other language adapters.
+Experimental local collector for TypeScript `node:test` and Jest. Its neutral `report.json` can be explicitly imported into pi-verify's combined report; `/verify` does not run the collector automatically. Supercov is the collection adapter.
 
 ## Run
 
@@ -26,7 +26,7 @@ The `demo` command succeeds when all example reports are generated; its delibera
 
 ## Inspect a project/worktree
 
-This is an experimental **TypeScript + node:test** adapter, not a validated Vitest/Jest integration. The target must already have its dependencies installed and an `npm test` script. The command executes that script through Supercov in an isolated copy; tests can still access network/services as their normal command permits.
+This is an experimental **TypeScript + node:test or Jest** adapter, not a validated Vitest or Playwright integration. The target must already have dependencies installed and a non-watch `npm test` script. It executes that script through Supercov in the target project; tests can write files or contact services. Supercov also creates its own workspace in the target. Review the command and side effects before running it. The project may live inside a Git repository subdirectory (for example, `frontend/`); source/test paths are relative to that project.
 
 ```sh
 npm run collect -- \
@@ -41,13 +41,25 @@ Repeat `--source` and `--test` to declare scope. Paths for these two options are
 
 `collect` preserves the measured test command's nonzero exit code; stale evidence returns 2 when the test command passed. Collector launch, timeout, schema, and truncation failures fail explicitly instead of fabricating a report.
 
+### Combine coverage with pi-verify
+
+After collection, keep `report.json` and `supercov-evidence.json` together. From the target repository, with pi-verify built (`npm run build` in pi-verify), run:
+
+```sh
+node /path/to/pi-verify/dist/src/conceptual-model/cli.js \
+  BASE_COMMIT HEAD /private/path/to/combined-report \
+  /private/path/to/collector-output/report.json
+```
+
+Alternatively pass `coverageReport` to `verify_finish`; its verified branch-creation base must match the collector base. Both imports require the source/test snapshots and captured project configuration to match the committed target; uncommitted edits cannot be presented as committed evidence. Regenerate reports after updating the collector. The Architecture view is unavailable unless the target supports the separate conceptual model. Only explicitly allowlisted source/test files receive changed-line analysis; all captured run output and embedded source may be sensitive.
+
 ## Report behavior
 
 - Filter order: **Tests covering changes / Changed tests / All tests**. Tests covering changes is selected initially; only matching test-name rows are visible and all details are collapsed.
 - **Tests covering changes:** tests with exact observed execution of changed source locations, including unchanged tests. This does not imply their assertions detect a defect.
 - **Changed tests:** added or edited **test definitions**, not every test in an edited file. Expansion shows a unified test diff; added tests are entirely additions.
 - **All tests:** recorded individual tests plus recognized static declarations missing evidence (outcome/attribution unknown). Expand to the measured test source and metadata.
-- Source, both sides of test diffs, and enclosing functions have Shiki TypeScript syntax colors (github-light). The before/after sides of a diff are tokenized separately to preserve multiline comment/template state. There is no new word-level diff algorithm.
+- Source, both sides of test diffs, and enclosing functions have Shiki TypeScript/TSX syntax colors (github-light). The before/after sides of a diff are tokenized separately to preserve multiline comment/template state. There is no new word-level diff algorithm.
 - “Show changed-code hits” expands the whole enclosing function. A teal gutter and soft teal background mark only changed locations executed by that test. Other lines have neutral backgrounds and syntax-colored text, not a claimed full execution path. Module-level locations use nearby lines instead.
 - Report-level uncovered changed locations expand separately, with amber gutters/soft backgrounds and full-function context. Non-executable or unknown locations do not become false coverage gaps.
 - The compact **Run evidence** link opens a separate local evidence page with metadata, measurement limits, setup records, removed tests and all existing JSON/log download links. The main report omits the explanatory footer and teal/amber paragraphs removed during mockup review. Failure/stale/unknown warnings remain visible where applicable.
@@ -71,8 +83,8 @@ At generation, source/test/package snapshots and hashes, HEAD, and package/lockf
 
 ## Scope and limits
 
-- Validated fixtures cover native and compiled TypeScript with `node:test`, not every TypeScript build system, runner, browser, child process or concurrency pattern. Small deterministic fixtures establish feasibility, not universal reliability or performance.
-- Static recovery understands direct `test`, `it`, and `describe` calls with literal names. Aliases, parameterized/generated tests, `t.test`, and wrapper APIs are not recovered automatically. Measured identities without unique source matches remain visible with an explicit limitation. Same-scope duplicate names cannot be classified as changed reliably.
+- Automated fixtures cover native and compiled TypeScript with `node:test`, plus Jest 30 with ts-jest and jsdom in a repository subdirectory. A small separate Next.js Jest/TSX example was also run manually. These do not establish support for every Jest configuration, Next.js transformation, build system, runner, browser, child process or concurrency pattern. No CSMM project data was used in validation.
+- Static recovery understands direct `test`, `it`, and `describe` calls with literal names. Jest parameterized tests retain measured identity/outcomes, but their source/diff classification is unknown. Aliases, parameterized/generated tests, `t.test`, and wrapper APIs are not recovered automatically. Measured identities without unique source matches remain visible with an explicit limitation. Same-scope duplicate names cannot be classified as changed reliably.
 - Renamed tests appear as removed plus added. Moving a test between files has the same limitation. A changed helper is not attributed to every test by guesswork.
 - Source locations follow Supercov's executable obligation/line model, not statement-level change semantics. A line hit does not establish which changed expression was evaluated when several expressions share that line.
 - Head coverage cannot describe deleted code; deleted source lines are excluded. A separate base-revision coverage run would be needed for deleted-code impact.

@@ -38,6 +38,7 @@ export interface Measurement {
   options: Options;
   base: string;
   head: string;
+  projectPath: string;
   runId: string;
   exitCode: number;
   measuredAt: string;
@@ -51,7 +52,7 @@ export interface Measurement {
 }
 
 export function sha256(source: string): string { return createHash("sha256").update(source).digest("hex"); }
-const configurationFiles = ["package.json", "package-lock.json", "npm-shrinkwrap.json", "tsconfig.json"];
+const configurationFiles = ["package.json", "package-lock.json", "npm-shrinkwrap.json", "tsconfig.json", "jest.config.ts", "jest.config.js", "jest.config.cjs", "jest.config.mjs", "jest.config.json", "next.config.ts", "next.config.js", "next.config.cjs", "next.config.mjs"];
 async function configurationHashes(root: string): Promise<Record<string, string | null>> {
   const result: Record<string, string | null> = {};
   for (const file of configurationFiles) {
@@ -84,10 +85,10 @@ function validatePath(file: string): void {
 async function baseSource(root: string, revision: string, file: string): Promise<string> {
   const listed = await git(root, "ls-tree", "--name-only", revision, "--", file);
   if (!listed.trim()) return "";
-  return git(root, "show", `${revision}:${file}`);
+  return git(root, "show", `${revision}:./${file}`);
 }
 function rawTest(value: unknown): RawTest {
-  if (object(value) && value.role === "background" && value.file === undefined) value = { ...value, file: "" };
+  if (object(value) && value.file === undefined && (value.role === "background" || object(value.provenance) && value.provenance.runner === "command")) value = { ...value, file: "" };
   if (!object(value) || !["id", "name", "file", "outcome", "role", "attribution"].every(key => typeof value[key] === "string") || !Array.isArray(value.lines) || !object(value.totals) || typeof value.totals.lines !== "number")
     throw new Error(`Supercov individual-test response is missing identity, outcome, role or coverage: ${JSON.stringify(value)}`);
   for (const line of value.lines)
@@ -104,6 +105,7 @@ export async function measure(options: Options): Promise<Measurement> {
   for (const file of files) validatePath(file);
   const base = (await git(root, "rev-parse", "--verify", `${options.base}^{commit}`)).trim();
   const head = (await git(root, "rev-parse", "HEAD")).trim();
+  const projectPath = (await git(root, "rev-parse", "--show-prefix")).trim().replace(/\/$/, "");
   await mkdir(outputDirectory, { recursive: true });
   const configHashes = await configurationHashes(root);
   const snapshots: Measurement["snapshots"] = {};
@@ -202,7 +204,7 @@ export async function measure(options: Options): Promise<Measurement> {
     }
   }
   const measuredAt = typeof summary.generatedAt === "string" ? summary.generatedAt : new Date().toISOString();
-  const measurement = { options, base, head, runId, exitCode, measuredAt, snapshots, configurationHashes: configHashes, before, changed, rawTests, rawLines, summary };
+  const measurement = { options, base, head, projectPath, runId, exitCode, measuredAt, snapshots, configurationHashes: configHashes, before, changed, rawTests, rawLines, summary };
   await writeFile(path.join(outputDirectory, "supercov-evidence.json"), JSON.stringify(measurement, null, 2));
   return measurement;
 }
@@ -210,7 +212,7 @@ export async function measure(options: Options): Promise<Measurement> {
 export async function buildReport(measurement: Measurement): Promise<Report> {
   const { options, snapshots } = measurement;
   const limitations = [
-    "Spike scope: explicit source/test file allowlists; TypeScript node:test static test()/it()/describe() declarations only. Not a universal runner adapter.",
+    "Explicit source/test allowlists; TypeScript Jest and node:test literal test()/it()/describe() declarations only. Parameterized and dynamic definitions may not map to source. Not a universal runner adapter.",
     "Coverage is observed execution, not assertion strength, all inputs, or proof that a selected subset is safe to run.",
     "Base comparison classifies test-definition text; renamed tests appear as removed plus added. Shared setup/helper/import changes are disclosed separately, not assigned to every test.",
     "Deleted source lines are not measured at head. Non-executable changed lines are excluded from coverage gaps. A base coverage run is required for deleted-code impact.",
@@ -249,7 +251,7 @@ export async function buildReport(measurement: Measurement): Promise<Report> {
     if (raw.role === "setup") setups.push(item);
     else if (raw.role === "test") {
       tests.push(item);
-      matched.add(`${raw.file}\0${raw.name}`);
+      if (definition) matched.add(`${raw.file}\0${definition.name}`);
       if (!definition) limitations.push(`Cannot unambiguously recover test source: ${raw.file} / ${raw.name}`);
       if (!exact && !stale) limitations.push(`Per-test attribution is ${raw.attribution}: ${raw.name}`);
     } else limitations.push(`Unsupported evidence role ${raw.role}: ${raw.name}`);
@@ -292,7 +294,7 @@ export async function buildReport(measurement: Measurement): Promise<Report> {
   return {
     schemaVersion: 1, collector: { name: "Supercov", version: "4.22.0" },
     run: { id: measurement.runId, exitCode: measurement.exitCode, command: ["npm", "test"], measuredAt: measurement.measuredAt },
-    comparison: { base: measurement.base, head: measurement.head, workingTree: true },
+    comparison: { base: measurement.base, head: measurement.head, projectPath: measurement.projectPath, workingTree: true },
     stale, sources: snapshots, tests, setups, changedLines, deletedTests, limitations,
   };
 }

@@ -29,7 +29,7 @@ for (const button of buttons) {
 `;
 
 function contextHtml(context: Context, highlighted: number[], tone: "hit" | "gap"): string {
-  const lines = highlightLines(context.source);
+  const lines = highlightLines(context.source, context.file);
   return `<div class="hit-location"><code>${e(context.file)}:${context.startLine}–${context.endLine}</code></div><pre class="function-context">${lines.map((lineHtml, index) => {
     const line = context.startLine + index;
     const marked = highlighted.includes(line);
@@ -53,9 +53,9 @@ function rowHtml(report: Report, item: TestEvidence, duplicate: boolean): string
   const files = new Set(item.changedHits.map(hit => hit.file)).size;
   const changedHits = hitCount ? `<p class="coverage-summary">Executed ${hitCount} changed line${hitCount === 1 ? "" : "s"} in ${files} file${files === 1 ? "" : "s"}.</p><details class="hits-disclosure"><summary>Show changed-code hits</summary>${contextsFor(report, item.changedHits).map(group => contextHtml(group.context, group.lines, "hit")).join("")}</details>`
     : `<p class="note">${item.attribution !== "exact" ? "Changed-line attribution is unknown for this test." : "No changed executable lines were observed in this test’s execution."}</p>`;
-  const highlightedDiff = highlightDiff(item.diff);
+  const highlightedDiff = highlightDiff(item.diff, item.file);
   const diff = item.diff.map((line, index) => `<div class="${line.kind}"><span class="diff-marker" aria-hidden="true">${line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span><code data-syntax="typescript">${highlightedDiff[index]}</code></div>`).join("");
-  return `<details class="test-row" data-change="${item.change}" data-covering="${hitCount > 0}"${hitCount ? "" : " hidden"}><summary>${caret}<span>${e(item.name)}</span>${duplicate ? `<span class="qualifier">${e(item.file)}:${item.line ?? "?"}</span>` : ""}</summary><div class="test-detail"><div class="detail-meta"><code>${e(item.file)}:${item.line ?? "?"}</code><span>${e(item.change)}</span><span class="${item.outcome === "failed" ? "failed" : item.outcome === "passed" ? "passed" : "unknown"}">${e(item.outcome.charAt(0).toUpperCase() + item.outcome.slice(1))}</span></div><div class="current-source"><pre class="test-source"><code data-syntax="typescript">${item.source === null ? e("Test source unavailable for this measured identity.") : highlightSource(item.source)}</code></pre></div><div class="diff-source"><pre class="test-diff">${diff || "Test diff unavailable."}</pre></div>${changedHits}</div></details>`;
+  return `<details class="test-row" data-change="${item.change}" data-covering="${hitCount > 0}"${hitCount ? "" : " hidden"}><summary>${caret}<span>${e(item.name)}</span>${duplicate ? `<span class="qualifier">${e(item.file)}:${item.line ?? "?"}</span>` : ""}</summary><div class="test-detail"><div class="detail-meta"><code>${e(item.file)}:${item.line ?? "?"}</code><span>${e(item.change)}</span><span class="${item.outcome === "failed" ? "failed" : item.outcome === "passed" ? "passed" : "unknown"}">${e(item.outcome.charAt(0).toUpperCase() + item.outcome.slice(1))}</span></div><div class="current-source"><pre class="test-source"><code data-syntax="typescript">${item.source === null ? e("Test source unavailable for this measured identity.") : highlightSource(item.source, item.file)}</code></pre></div><div class="diff-source"><pre class="test-diff">${diff || "Test diff unavailable."}</pre></div>${changedHits}</div></details>`;
 }
 
 export function renderReport(report: Report): string {
@@ -71,7 +71,7 @@ export function renderReport(report: Report): string {
 
 export function renderEvidence(report: Report): string {
   const setups = report.setups.length ? `<h2>Setup evidence (separate from tests)</h2><ul>${report.setups.map(item => `<li>${e(item.name)} · ${e(item.outcome)} · ${item.executedLines.length} observed source locations</li>`).join("")}</ul>` : "";
-  const removed = report.deletedTests.length ? `<h2>Removed tests (base source)</h2>${report.deletedTests.map(item => `<p>${e(item.file)} / ${e(item.name)}</p><pre class="test-source"><code data-syntax="typescript">${highlightSource(item.source)}</code></pre>`).join("")}` : "";
+  const removed = report.deletedTests.length ? `<h2>Removed tests (base source)</h2>${report.deletedTests.map(item => `<p>${e(item.file)} / ${e(item.name)}</p><pre class="test-source"><code data-syntax="typescript">${highlightSource(item.source, item.file)}</code></pre>`).join("")}` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'"><title>Run evidence</title><style>${css}</style></head><body><main class="evidence-page"><a href="index.html">← Tests</a><h1>Run evidence</h1><p>${e(report.run.id)} · ${e(report.run.measuredAt)} · command: ${e(report.run.command.join(" "))} · exit ${report.run.exitCode}${report.stale ? " · STALE" : ""}</p><p>Measured execution does not prove assertion strength. Embedded sources are measurement-time snapshots.</p><p>${report.setups.length} setup records; ${report.deletedTests.length} removed test definitions; ${report.changedLines.filter(item => item.status === "not-executable").length} non-executable changed locations excluded.</p><h2>Downloads</h2><ul><li><a href="report.json">Collector-neutral JSON</a></li><li><a href="supercov-evidence.json">Raw adapter evidence</a></li><li><a href="measurement.stdout.log">Test output</a></li><li><a href="measurement.stderr.log">Collector log</a></li></ul><h2>Measurement limits</h2><ul>${report.limitations.map(item => `<li>${e(item)}</li>`).join("")}</ul>${setups}${removed}</main></body></html>`;
 }
 

@@ -23,7 +23,7 @@ export interface Report {
   schemaVersion: 1;
   collector: { name: "Supercov"; version: string };
   run: { id: string; exitCode: number; command: string[]; measuredAt: string };
-  comparison: { base: string; head: string; workingTree: true };
+  comparison: { base: string; head: string; projectPath: string; workingTree: true };
   stale: boolean;
   sources: Record<string, { sha256: string; source: string }>;
   tests: TestEvidence[];

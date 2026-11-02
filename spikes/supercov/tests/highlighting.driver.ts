@@ -19,7 +19,7 @@ export class HighlightingDriver {
   model: Report = {
     schemaVersion: 1, collector: { name: "Supercov", version: "4.22.0" },
     run: { id: "run_highlighting", exitCode: 0, command: ["npm", "test"], measuredAt: "2026-01-01T00:00:00Z" },
-    comparison: { base: "a".repeat(40), head: "b".repeat(40), workingTree: true },
+    comparison: { base: "a".repeat(40), head: "b".repeat(40), projectPath: "", workingTree: true },
     stale: false, sources: {}, tests: [], setups: [], changedLines: [], deletedTests: [], limitations: ["Fixture measurement limitation"],
   };
   async dispose(): Promise<void> {
