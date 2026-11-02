@@ -37,6 +37,7 @@
   ],
   "dependencies": {
     "fast-xml-parser": "^5.11.2",
+    "shiki": "4.6.0",
     "typescript": "^5.9.3"
   }
 }
