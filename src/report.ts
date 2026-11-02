@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import type { ReviewReport } from "./review-report/domain/model.js";
 
 export type Outcome = "passed" | "failed" | "skipped" | "unknown";
 
@@ -40,7 +41,7 @@ export type VerificationReport = {
   artifacts?: ArtifactEntry[];
   skipped?: string[];
   limitations?: string[];
-  review?: Record<string, unknown>;
+  review?: ReviewReport;
 };
 
 export function reportJson(report: VerificationReport): string {

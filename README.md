@@ -57,6 +57,12 @@ pi install ./pi-verify
 
 Pi loads `src/extension.ts` directly through its TypeScript loader. A build is only required for this repository's compiled tests, not for reloading the installed package.
 
+## Review report foundations
+
+New JSON reports produced by `verify_finish` include a separately versioned `review` object. Its comparison uses the feature branch's creation reflog entry as the base and committed HEAD as the target; it records the target Git tree ID and lists staged, unstaged, and untracked files as excluded. If the creation base cannot be verified as an ancestor of HEAD, the review comparison is unavailable rather than falling back to another base. This is separate from the existing verification report's baseline detection.
+
+The review sections identify their source, scope, revision, status, limitations, and evidence references. Checks and summaries are agent-authored; changed-file analysis, per-test coverage, complexity, and architecture analysis are not yet collected. The only review inputs currently supported are the detected Git state and deliberately attached artifacts; no external measurement or analysis configuration is accepted. Finishing a report packages this information without running measurement commands. Historical bundles are not rewritten. HTML rendering is not implemented yet.
+
 ## Verification tools
 
 - `verify_start({ goal })`: infer the source project from the session cwd and return acceptance criteria. Runs are isolated under `~/.pi/agent/audits/<project-key>/<unique-run>/`.

@@ -3,7 +3,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { reportMarkdown, writeReportBundle, type VerificationReport } from "./report.js";
-import { collectGitScope } from "./git-scope.js";
+import { collectGitScope, type GitScope } from "./git-scope.js";
+import { collectReviewReport } from "./review-report/infra/collect.js";
 
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({
   type: "object",
@@ -111,8 +112,10 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
       let source: Record<string, unknown> = { repository: current.projectDir, git: false, note: "No Git metadata was collected." };
       let commits: VerificationReport["commits"] = [];
       const sourceIssues: string[] = [];
+      let reviewScope: GitScope | undefined;
       try {
         const git = await collectGitScope(current.projectDir);
+        reviewScope = git;
         commits = git.commits;
         source = {
           repository: git.repository,
@@ -158,6 +161,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
         artifacts: current.attachments,
         skipped: params.skipped ?? [],
         limitations: [...(params.limitations ?? []), ...sourceIssues],
+        review: await collectReviewReport(reviewScope, current.attachments.map((item) => item.path)),
       };
       const reportPaths = await writeReportBundle(path.join(current.reportDir, "reports"), report);
       // The on-disk report keeps relative links so VS Code can follow them, but
