@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { ArtifactEntry, VerificationReport } from "../../report.js";
+import { conceptualCss, conceptualHtml } from "../../conceptual-model/html.js";
 
 const escape = (value: unknown): string => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
@@ -50,14 +51,14 @@ export function reportHtml(report: VerificationReport, directory: string): strin
   const unavailableSection = (id: "testsCoverage" | "complexity" | "architecture", title: string) => unavailable(title, review?.sections[id].limitations);
   const nav = sections.map(([id, label, icon]) => `<a href="#${id}"><span aria-hidden="true">${icon}</span>${escape(label)}</a>`).join("");
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Verification report</title><style>${css}</style></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Verification report</title><style>${css}${conceptualCss}</style></head>
 <body><a class="skip" href="#main">Skip to report</a><div class="app"><aside class="sidebar"><div class="brand"><span class="brand-icon">✓</span><strong>verify</strong><span class="brand-tag">REPORT</span></div><p class="side-label">WORKSPACE</p><div class="project"><b>${escape(branch)}</b><small>Local review</small></div><p class="side-label">REVIEW</p><nav aria-label="Report sections">${nav}</nav><p class="side-bottom">Generated locally<br><small>Your selected evidence stays with the report</small></p></aside>
 <main id="main"><div class="breadcrumb">pi-verify <span>/</span> verification report</div><header><div class="eyebrow">● &nbsp; VERIFICATION REPORT</div><h1>Review</h1><div class="context"><span>${escape(branch)}</span><span>Base <b>${escape(base)}</b></span><span>Target <b>${escape(target)}</b></span></div></header>
 <section class="page" id="overview"><div class="summary"><div><h2>${escape(report.verdict)} <span class="badge">Agent-reported checks</span></h2><p>${escape(report.goal)}</p></div><div class="stats"><div><b>${checks.filter((item) => item.outcome === "passed").length} / ${checks.length}</b><small>checks passed</small></div><div><b>${artifacts.length}</b><small>attachments</small></div></div></div><div class="section-title"><h2>Review at a glance</h2><span>Evidence from this run</span></div><div class="grid">${unavailableSection("testsCoverage", "Changed-line coverage")}<div class="panel"><div class="panel-head"><div><h2>Checks run</h2><p>Agent-reported, not independently collected</p></div></div><ul class="checks">${checksList}</ul></div></div>${limitationsList}</section>
 <section class="page" id="changes"><div class="panel"><div class="panel-head"><div><h2>Changed files</h2><p>Agent-reported summaries; not independently collected</p></div></div><p class="note">${escape(changeNotice)}</p><div class="file-list">${changesList}</div></div></section>
 <section class="page" id="tests-coverage">${unavailableSection("testsCoverage", "Tests & coverage")}</section>
 <section class="page" id="complexity">${unavailableSection("complexity", "Complexity")}</section>
-<section class="page" id="architecture">${unavailableSection("architecture", "Architecture")}</section>
+<section class="page" id="architecture">${review?.conceptualModel ? conceptualHtml(review.conceptualModel) : unavailableSection("architecture", "Architecture")}</section>
 <section class="page" id="evidence"><div class="panel"><div class="panel-head"><div><h2>Evidence</h2><p>Selected artifacts from this review</p></div><span class="badge">${artifacts.length} items</span></div><div class="evidence-list">${evidenceList}</div></div></section>
 <footer>PI VERIFY <span>·</span> A local, evidence-first review</footer></main></div></body></html>\n`;
 }

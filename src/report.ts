@@ -54,6 +54,7 @@ export async function writeReportBundle(directory: string, report: VerificationR
   const jsonPath = path.join(directory, "pi-verify-report.json");
   const markdownPath = path.join(directory, "pi-verify-report.md");
   const htmlPath = path.join(directory, "pi-verify-report.html");
+  if (report.review?.conceptualModel?.diagramXml) await writeFile(path.join(directory, "conceptual-model.drawio"), report.review.conceptualModel.diagramXml);
   await writeFile(jsonPath, reportJson(report));
   await writeFile(markdownPath, reportMarkdown(report, directory));
   await writeFile(htmlPath, reportHtml(report, directory));

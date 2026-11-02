@@ -12,10 +12,11 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "@types/node": "^22.0.0"
   },
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
@@ -25,11 +26,17 @@
     }
   },
   "pi": {
-    "extensions": ["./src/extension.ts"]
+    "extensions": [
+      "./src/extension.ts"
+    ]
   },
   "files": [
     "src",
     "README.md",
     "REQUIREMENTS.md"
-  ]
+  ],
+  "dependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "typescript": "^5.9.3"
+  }
 }

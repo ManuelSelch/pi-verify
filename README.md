@@ -61,9 +61,24 @@ Pi loads `src/extension.ts` directly through its TypeScript loader. A build is o
 
 New JSON reports produced by `verify_finish` include a separately versioned `review` object. Its comparison uses the feature branch's creation reflog entry as the base and committed HEAD as the target; it records the target Git tree ID and lists staged, unstaged, and untracked files as excluded. If the creation base cannot be verified as an ancestor of HEAD, the review comparison is unavailable rather than falling back to another base. This is separate from the existing verification report's baseline detection.
 
-The review sections identify their source, scope, revision, status, limitations, and evidence references. Checks and summaries are agent-authored; changed-file analysis, per-test coverage, complexity, and architecture analysis are not yet collected. The only review inputs currently supported are the detected Git state and deliberately attached artifacts; no external measurement or analysis configuration is accepted. Finishing a report packages this information without running measurement commands. Historical bundles are not rewritten.
+The review sections identify their source, scope, revision, status, limitations, and evidence references. Checks and summaries are agent-authored; changed-file analysis, per-test coverage, and complexity are not yet collected. When the committed repository contains the supported conceptual model, the Architecture section compares it at the selected committed revisions and checks its target against the committed TypeScript source. No external measurement command is run. Historical bundles are not rewritten.
 
 Each new bundle also contains a standalone HTML report. `verify_finish` returns its path with the existing JSON and Markdown paths; the one-time Pi message links to it without triggering a model turn. The report uses embedded styles and no network assets or scripts, and links only to selected artifacts inside the bundle using relative paths. Supported raster screenshots appear at their natural size up to the available width; logs, videos, SVGs and other files are downloadable rather than embedded. Copy the whole bundle to preserve evidence links. Navigation uses URL fragments and CSS; a modern browser supporting `:has()` is required to switch sections. HTML is escaped and the report uses a restrictive content security policy; attached files themselves remain untrusted.
+
+## Checked conceptual model
+
+[docs/conceptual-model.drawio](docs/conceptual-model.drawio) is the editable, hand-arranged model of the exported type aliases in [the review-report domain](src/review-report/domain/model.ts). Its `concept` and `assoc` attributes identify boxes and links independently of layout. Relationships are type references between those aliases; references inside arrays and `Record` are many, shown by `*` at the referenced end. These are structural type relationships, **not** runtime, deployment or complete repository architecture. Exported interfaces, multi-page/compressed drawings and draw.io PNGs are not supported; unsupported input fails rather than being presented as verified. Open the XML file in draw.io and keep visible labels, metadata and multiplicities aligned. Layout and styling belong to the human; `placed="auto"` marks an unfinished box and fails the check.
+
+`npm test` runs the bidirectional guardrail: missing, extra, duplicated or undeclared concepts and associations, wrong labels, endpoints and visible cardinalities fail. The review section independently evaluates the same guardrail against committed source; its status is not a claim that tests ran. It compares semantic identities and cardinalities, excluding the working tree. A missing base drawing is explicitly labelled absent; unavailable bases and invalid data are not treated as successful comparisons. The built-in report renderer uses box positions and straight links, not full draw.io styling or routing; additions are green, while removals and changes are listed. A downloadable draw.io snapshot accompanies the HTML bundle. Only the repository-specific path and domain file above are supported; other repositories without them remain unavailable.
+
+For an explicit comparison, build and supply Git refs (the report's Architecture tab contains the result):
+
+```bash
+npm run build
+node dist/src/conceptual-model/cli.js "$(git merge-base HEAD origin/main)" HEAD /tmp/conceptual-review
+```
+
+The command reads committed blobs, not local edits. The regular `/verify` report continues to use its existing verified branch-creation base; it does not silently switch to a merge-base. The model and semantic-diff approach are adapted from [human-review](https://github.com/victorrentea/human-review) and [petclinic's conceptual model guardrail](https://github.com/victorrentea/petclinic/tree/main/petclinic-backend/src/test/java/victor/training/petclinic/guardrail), rewritten for this TypeScript project.
 
 ## Standalone TypeScript coverage spike
 

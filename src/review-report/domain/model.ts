@@ -9,6 +9,7 @@ export type ReviewSection = {
 
 export type ReviewReport = {
   schemaVersion: 1;
+  conceptualModel?: import("../../conceptual-model/collect.js").ConceptualReview;
   comparison: {
     status: "available" | "unavailable";
     base: string | null;

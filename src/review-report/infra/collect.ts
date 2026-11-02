@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitScope } from "../../git-scope.js";
 import type { ReviewReport, ReviewSection } from "../domain/model.js";
+import { collectConceptualModel, type ConceptualReview } from "../../conceptual-model/collect.js";
 
 const exec = promisify(execFile);
 
@@ -26,7 +27,18 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
     source, status, scope: sectionScope, revision: source === "git" ? revision : null, limitations: notes, evidence: refs,
   });
   const unavailable = (name: string) => section("not-collected", "unavailable", name, ["Analysis has not been collected."]);
+  let conceptualModel: ConceptualReview | undefined;
+  let modelFailure: string | undefined;
+  if (scope) {
+    try {
+      const collected = await collectConceptualModel(scope.repository, base, scope.head);
+      if (collected.targetPresent || collected.basePresent) conceptualModel = collected;
+    } catch (error) {
+      modelFailure = `Conceptual model could not be collected: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
   return {
+    ...(conceptualModel ? { conceptualModel } : {}),
     schemaVersion: 1,
     comparison: {
       status: base && tree ? "available" : "unavailable", base, target: revision, targetTree: tree,
@@ -39,7 +51,9 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
       changes: section("not-collected", "unavailable", "Committed feature branch comparison", [...limitations, "Changed files have not been independently collected."]),
       testsCoverage: unavailable("Per-test changed-line coverage"),
       complexity: unavailable("Named module complexity"),
-      architecture: unavailable("Component model and static relationships"),
+      architecture: conceptualModel
+        ? section("git", "available", "TypeScript review-report domain concepts", ["Structural references only; not runtime interactions."])
+        : section("not-collected", "unavailable", "Conceptual model", [modelFailure ?? "No supported committed conceptual model was collected."]),
       evidence: section("agent-authored", "available", "Deliberately attached artifacts", [], evidence),
     },
   };

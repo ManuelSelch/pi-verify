@@ -1,0 +1,36 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { collectConceptualModel } from "../src/conceptual-model/collect.js";
+import { collectReviewReport } from "../src/review-report/infra/collect.js";
+import { writeReportBundle } from "../src/report.js";
+
+test("compares committed revisions, reporting an absent historical diagram and excluding loose edits", async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "conceptual-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+  git("init", "-q"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.com");
+  writeFileSync(path.join(dir, "initial"), "initial"); git("add", "initial"); git("commit", "-qm", "base");
+  const base = git("rev-parse", "HEAD");
+  mkdirSync(path.join(dir, "docs"), { recursive: true }); mkdirSync(path.join(dir, "src/review-report/domain"), { recursive: true });
+  writeFileSync(path.join(dir, "docs/conceptual-model.drawio"), readFileSync("docs/conceptual-model.drawio"));
+  writeFileSync(path.join(dir, "src/review-report/domain/model.ts"), readFileSync("src/review-report/domain/model.ts"));
+  git("add", "docs", "src"); git("commit", "-qm", "model");
+  const target = git("rev-parse", "HEAD");
+  writeFileSync(path.join(dir, "docs/conceptual-model.drawio"), "loose edit");
+  const review = await collectConceptualModel(dir, base, target);
+  assert.equal(review.basePresent, false);
+  assert.equal(review.guardrail.status, "passed");
+  assert.deepEqual(review.delta?.added, ["association ReviewReport-ReviewSection", "concept ReviewReport", "concept ReviewSection"]);
+  assert.deepEqual((await collectConceptualModel(dir, target, target)).delta, { added: [], removed: [], changed: [] });
+  const reviewReport = await collectReviewReport({ repository: dir, branch: "feature", head: target, baseline: base, baselineMethod: "branch-creation-reflog", fingerprint: "", clean: false, staged: [], unstaged: ["docs/conceptual-model.drawio"], untracked: [], commits: [] }, []);
+  const bundle = await writeReportBundle(path.join(dir, "bundle"), { goal: "test", verdict: "UNKNOWN", review: reviewReport });
+  assert.equal(reviewReport.sections.architecture.status, "available");
+  assert.match(readFileSync(bundle.htmlPath, "utf8"), /Guardrail passed/);
+  assert.match(readFileSync(bundle.htmlPath, "utf8"), /No diagram existed at this revision/);
+  assert.match(readFileSync(path.join(dir, "bundle/conceptual-model.drawio"), "utf8"), /ReviewReport/);
+  await assert.rejects(collectConceptualModel(dir, "not-a-revision", target));
+});
