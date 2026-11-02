@@ -128,7 +128,7 @@ function UncoveredChanges() {
 }
 
 function App() {
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("covering");
   const state = new URLSearchParams(location.search).get("state");
   const unsupported = state === "unsupported";
   const failed = state === "failed";
@@ -158,9 +158,9 @@ function App() {
         onChange={value => setFilter(value as Filter)}
         aria-label="Filter tests"
         data={[
-          { value: "all", label: `All tests · ${tests.length}` },
+          { value: "covering", label: `Tests covering changes · ${unsupported ? "unknown" : covering.length}` },
           { value: "changed", label: `Changed tests · ${changed.length}` },
-          { value: "covering", label: `Covering changes · ${unsupported ? "unknown" : covering.length}` },
+          { value: "all", label: `All tests · ${tests.length}` },
         ]}
       />
       <section className="test-list" aria-label="Tests">

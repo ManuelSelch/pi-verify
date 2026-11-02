@@ -1,12 +1,12 @@
-# Supercov spike report — revision 3
+# Supercov spike report — revision 4
 
-- Status: revision 3 approved for implementation by the user: “approved. Now implement the spike”. Approval also covers the existing acceptance scenario drafts and the refined compact report interactions.
+- Status: revision 3 remains the approved implemented baseline. Revision 4 is a mockup-only refinement requested by the user: “Tests covering changes”. Order: Tests covering changes / Changed tests / All tests; first mode selected by default. Production report has not been changed for this revision.
 - Goal: a small standalone TypeScript per-test coverage report, not a redesign or integration of pi-verify.
 - Layout: compact heading and comparison context; a single three-mode filter with counts; test-name rows initially collapsed. No summary cards, split pane, always-visible source, or per-row metadata in the collapsed state.
-- Controls: All tests / Changed tests / Covering changes. Switching modes resets expanded rows. Multiple rows can be expanded independently.
+- Controls: Tests covering changes / Changed tests / All tests, with Tests covering changes selected initially. Switching modes resets expanded rows. Multiple rows can be expanded independently.
 - All tests: complete fixture inventory; expand to current test source, location, change classification and outcome.
 - Changed tests: added/edited test definitions only; expand to their unified diff, with all added-test lines shown as additions. A changed file does not automatically classify every contained test as modified.
-- Covering changes: strictly measured execution of changed source locations, including unchanged tests. Expand to current test source and a short changed-line-hit summary.
+- Tests covering changes: strictly measured execution of changed source locations, including unchanged tests. Expand to current test source and a short changed-line-hit summary.
 - Coverage detail: optional nested “Show changed-code hits” shows the whole enclosing function with line numbers. Green + marks only changed locations executed by this test; surrounding lines are neutral context, not inferred execution. No full execution path or per-test “uncovered lines” view.
 - Gaps: separate collapsed report-level section for changed executable lines covered by no measured test, also showing the whole enclosing function. Amber + marks only the uncovered changed location; surrounding context stays neutral.
 - Metadata and limits: secondary footer disclosure; test source has file/line context. If repeated test names are introduced, use a short suite/file qualifier in collapsed rows.
