@@ -7,7 +7,12 @@ import test from "node:test";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
-type Snapshot = { name: string; counts: Record<string, number> };
+type Snapshot = {
+  name: string;
+  counts: Record<string, number>;
+  files: Record<string, number[]>;
+  ranges: Record<string, Array<{ functionName: string; ranges: Array<{ startOffset: number; endOffset: number; count: number }> }>>;
+};
 
 async function measure(mode: "serial" | "overlap"): Promise<Snapshot[]> {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pi-verify-coverage-spike-"));
@@ -36,6 +41,9 @@ test("coverage hooks attribute separate serial tests within a single suite run",
   assert.equal(alpha.counts.beta ?? 0, 0);
   assert.equal(beta.counts.alpha ?? 0, 0);
   assert.equal(beta.counts.beta, 1);
+  assert.deepEqual(alpha.files["tests/fixtures/coverage-spike/subject.cjs"], [1, 2, 3]);
+  assert.deepEqual(beta.files["tests/fixtures/coverage-spike/subject.cjs"], [5, 6, 7]);
+  assert.ok(alpha.ranges["tests/fixtures/coverage-spike/subject.cjs"].some((fn) => fn.functionName === "alpha" && fn.ranges[0].count === 1));
 });
 
 test("overlapping tests contaminate shared coverage snapshots", async () => {
@@ -47,4 +55,6 @@ test("overlapping tests contaminate shared coverage snapshots", async () => {
   assert.equal(alpha.counts.alpha, 1);
   assert.equal(alpha.counts.beta, 1, "beta's hit is incorrectly attributed to alpha");
   assert.equal(beta.counts.beta ?? 0, 0, "beta's own hit was consumed by alpha's snapshot");
+  assert.deepEqual(alpha.files["tests/fixtures/coverage-spike/subject.cjs"], [1, 2, 3, 5, 6, 7]);
+  assert.deepEqual(beta.files["tests/fixtures/coverage-spike/subject.cjs"], []);
 });
