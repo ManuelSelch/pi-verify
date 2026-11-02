@@ -13,7 +13,7 @@ export function buildVerifyPrompt(argument: string): string {
     "3. Choose only the checks that matter for this task; docs-only tasks may skip unrelated suites, while code changes should run the smallest relevant validation.",
     "4. Run the relevant test, lint, typecheck, smoke, or browser commands, then inspect the real output. Inspect the actual output and label results as passed, failed, skipped, cancelled, timed-out, or unknown.",
     "5. When useful, attach screenshots, logs, terminal output, traces, or other artifacts using verify_attach. Each attachment should have a short label and a description, and should be selected deliberately.",
-    "6. Call verify_finish with a compact summary of the task, the files changed, the tests executed, the checks run, skipped items, limitations, and any useful attachments. This generates durable JSON, Markdown, and HTML reports automatically.",
+    "6. Call verify_finish with a compact summary of the task, the files changed, the tests executed, the checks run, skipped items, limitations, and any useful attachments. If a compatible Supercov spike report.json was explicitly collected, supply its path as coverageReport; do not invent coverage or silently execute collection. This generates durable JSON, Markdown, and HTML reports automatically.",
     "7. Report the outcome honestly: do not say a failed or incomplete check passed. If the task was not fully validated, say so clearly and list what remains uncertain.",
     "",
     "Required behavior:",

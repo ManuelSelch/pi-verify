@@ -86,7 +86,8 @@ export class ReviewHtmlDriver {
   }
 
   async expectSectionsAndHonestUnavailableStates(): Promise<void> {
-    for (const label of ["Overview", "Changes", "Tests &amp; coverage", "Complexity", "Architecture", "Evidence"]) assert.ok(this.html.includes(label), label);
+    for (const label of ["Tests &amp; coverage", "Architecture", "Evidence"]) assert.ok(this.html.includes(label), label);
+    for (const id of ["overview", "changes", "complexity", "evidence"]) assert.ok(!this.html.includes(`href="#${id}"`), id);
     assert.match(this.html, /Agent reported change/);
     assert.match(this.html, /agent.reported/i);
     assert.match(this.html, /unavailable/i);
@@ -96,15 +97,15 @@ export class ReviewHtmlDriver {
   async expectAccessibleResponsiveNavigation(): Promise<void> {
     assert.match(this.html, /<nav\b/);
     assert.match(this.html, /<main\b/);
-    for (const id of ["overview", "changes", "tests-coverage", "complexity", "architecture", "evidence"]) {
+    for (const id of ["tests-coverage", "architecture"]) {
       assert.match(this.html, new RegExp(`href="#${id}"`));
       assert.match(this.html, new RegExp(`id="${id}"`));
     }
     assert.match(this.html, /@media/);
     assert.match(this.html, /focus-visible/);
     // A selected non-overview page must not match the default hidden rule.
-    assert.match(this.html, /\.page:not\(#overview\):not\(:target\)\{display:none\}/);
-    assert.match(this.html, /main:has\(\.page:target\) #overview:not\(:target\)\{display:none\}/);
+    assert.match(this.html, /\.page:not\(#tests-coverage\):not\(:target\)\{display:none\}/);
+    assert.match(this.html, /main:has\(\.page:target\) #tests-coverage:not\(:target\)\{display:none\}/);
   }
 
   async expectSelectedEvidenceAndPortableLinks(): Promise<void> {

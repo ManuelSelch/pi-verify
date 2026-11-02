@@ -1,6 +1,6 @@
 export type ReviewSection = {
   status: "available" | "unavailable";
-  source: "git" | "agent-authored" | "not-collected";
+  source: "git" | "coverage-collector" | "agent-authored" | "not-collected";
   scope: string;
   revision: string | null;
   limitations: string[];
@@ -10,6 +10,7 @@ export type ReviewSection = {
 export type ReviewReport = {
   schemaVersion: 1;
   conceptualModel?: import("../../conceptual-model/collect.js").ConceptualReview;
+  coverage?: import("../infra/coverage.js").CoverageReport;
   comparison: {
     status: "available" | "unavailable";
     base: string | null;

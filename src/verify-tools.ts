@@ -103,6 +103,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
     description: "Create the durable verification report from the task summary, checks, tests, and optional attachments.",
     parameters: schema({
       goal: { type: "string", description: "Short task description to record in the report" },
+      coverageReport: { type: "string", description: "Optional path to an explicitly collected Supercov spike report.json; its base, HEAD and snapshots must match the committed review." },
       changes: { type: "array", items: schema({ file: { type: "string" }, summary: { type: "string" } }, ["file", "summary"]) },
       tests: { type: "array", description: "Added or modified tests, separate from checks run.", items: schema({ name: { type: "string" }, file: { type: "string" }, behavior: { type: "string" }, outcome: { type: "string", enum: ["passed", "failed", "skipped", "unknown"] }, evidence: { type: "array", items: { type: "string" } } }, ["name", "file", "behavior", "outcome"]) },
       checks: { type: "array", description: "Concrete validation commands or inspections run for this task.", items: schema({ command: { type: "string" }, cwd: { type: "string" }, outcome: { type: "string", enum: ["passed", "failed", "skipped", "cancelled", "timed-out", "unknown"] }, exitCode: { type: "number" }, note: { type: "string" } }, ["command", "outcome"]) },
@@ -163,7 +164,7 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
         artifacts: current.attachments,
         skipped: params.skipped ?? [],
         limitations: [...(params.limitations ?? []), ...sourceIssues],
-        review: await collectReviewReport(reviewScope, current.attachments.map((item) => item.path)),
+        review: await collectReviewReport(reviewScope, current.attachments.map((item) => item.path), typeof params.coverageReport === "string" ? path.resolve(current.projectDir, params.coverageReport) : undefined),
       };
       const reportPaths = await writeReportBundle(path.join(current.reportDir, "reports"), report);
       // The on-disk report keeps relative links so VS Code can follow them, but

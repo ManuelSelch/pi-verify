@@ -87,6 +87,7 @@ async function baseSource(root: string, revision: string, file: string): Promise
   return git(root, "show", `${revision}:${file}`);
 }
 function rawTest(value: unknown): RawTest {
+  if (object(value) && value.role === "background" && value.file === undefined) value = { ...value, file: "" };
   if (!object(value) || !["id", "name", "file", "outcome", "role", "attribution"].every(key => typeof value[key] === "string") || !Array.isArray(value.lines) || !object(value.totals) || typeof value.totals.lines !== "number")
     throw new Error(`Supercov individual-test response is missing identity, outcome, role or coverage: ${JSON.stringify(value)}`);
   for (const line of value.lines)
@@ -160,15 +161,40 @@ export async function measure(options: Options): Promise<Measurement> {
   const rawTests: RawTest[] = [];
   for (const entry of entries) {
     if (!object(entry) || typeof entry.id !== "string") throw new Error("Invalid test inventory entry");
-    const page = await query(root, ["runs", runId, "test", entry.id, "--limit", "0", "--json"]);
-    if (page.pagination?.hasMore) throw new Error("Individual-test evidence exceeds the query limit; refusing partial attribution");
-    if (!Array.isArray(page.data.tests) || page.data.tests.length !== 1) throw new Error("Individual test identity is ambiguous");
-    rawTests.push(rawTest(page.data.tests[0]));
+    let offset = 0;
+    let first: Record<string, unknown> | undefined;
+    const lines = new Map<string, Location>();
+    while (true) {
+      const page = await query(root, ["runs", runId, "test", entry.id, "--limit", "0", "--offset", String(offset), "--json"]);
+      if (!Array.isArray(page.data.tests) || page.data.tests.length !== 1 || !object(page.data.tests[0])) throw new Error("Individual test identity is ambiguous");
+      const item = page.data.tests[0];
+      if (item.id !== entry.id || !Array.isArray(item.lines) || !object(item.totals) || typeof item.totals.lines !== "number") throw new Error("Invalid individual-test page");
+      if (!first) first = item;
+      else if (!object(first.totals) || first.totals.lines !== item.totals.lines || first.outcome !== item.outcome || first.role !== item.role || first.attribution !== item.attribution) throw new Error("Individual-test pages disagree");
+      for (const line of item.lines) {
+        if (!object(line) || typeof line.file !== "string" || !Number.isInteger(line.line)) throw new Error("Invalid source location");
+        lines.set(`${line.file}:${line.line}`, line as unknown as Location);
+      }
+      if (!page.pagination?.hasMore) break;
+      const next = page.pagination.nextOffset;
+      if (next === null || next <= offset) throw new Error("Non-progressing test pagination");
+      offset = next;
+    }
+    rawTests.push(rawTest({ ...first, lines: [...lines.values()] }));
   }
   const rawLines: Record<string, LineEvidence> = {};
   for (const file of options.sourceFiles) {
     for (const line of changed[file]) {
-      const page = await query(root, ["runs", runId, "line", `${file}:${line}`, "--limit", "0", "--json"]);
+      let page: Envelope;
+      try { page = await query(root, ["runs", runId, "line", `${file}:${line}`, "--limit", "0", "--json"]); }
+      catch (error) {
+        const stdout = (error as { stdout?: string }).stdout;
+        let parsed: unknown;
+        try { parsed = JSON.parse(stdout ?? ""); } catch { /* Preserve the original failure. */ }
+        if (!object(parsed) || parsed.ok !== false || !object(parsed.error) || parsed.error.code !== "SOURCE_NOT_FOUND") throw error;
+        rawLines[`${file}:${line}`] = { totalAnchored: 0, covered: false, tests: [], limitations: ["Source has no measured executable obligations."] };
+        continue;
+      }
       const data = page.data;
       if (page.pagination?.hasMore || typeof data.totalAnchored !== "number" || typeof data.covered !== "boolean" || !Array.isArray(data.tests) || !Array.isArray(data.limitations))
         throw new Error("Incomplete changed-line evidence");
@@ -253,7 +279,7 @@ export async function buildReport(measurement: Measurement): Promise<Report> {
       limitations.push(`Shared test context/imports/helpers changed: ${file}. No per-test impact inference is made.`);
   }
   if (setups.length) limitations.push(`${setups.length} setup records are stored separately and excluded from test-body changed-code hits.`);
-  const uncertain = tests.some(item => item.attribution !== "exact") || object(measurement.summary.measurement) && measurement.summary.measurement.complete !== true;
+  const uncertain = tests.some(item => item.attribution !== "exact") || measurement.rawTests.some(item => item.role !== "test" && item.role !== "setup") || object(measurement.summary.measurement) && measurement.summary.measurement.complete !== true;
   const changedLines: ChangedLine[] = [];
   for (const file of options.sourceFiles) {
     for (const line of measurement.changed[file]) {

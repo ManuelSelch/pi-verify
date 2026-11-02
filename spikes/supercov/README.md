@@ -77,7 +77,7 @@ At generation, source/test/package snapshots and hashes, HEAD, and package/lockf
 - Source locations follow Supercov's executable obligation/line model, not statement-level change semantics. A line hit does not establish which changed expression was evaluated when several expressions share that line.
 - Head coverage cannot describe deleted code; deleted source lines are excluded. A separate base-revision coverage run would be needed for deleted-code impact.
 - Current freshness scope is the allowlisted source/test files, HEAD, package/lockfiles and tsconfig—not every environment variable, external service, data file, config file or dependency installed on disk.
-- Oversized/truncated individual-test or changed-line JSON responses fail explicitly. There is no fallback to approximate attribution.
+- Individual-test pages are combined by source location and checked against the reported line total; ambiguous, inconsistent or truncated data fails explicitly. Background execution is not credited to test bodies and makes otherwise unproven gaps unknown. A source with no measured obligations is unknown rather than a coverage success. Truncated changed-line responses fail explicitly. There is no fallback to approximate attribution.
 - Ordinary raw evidence/logs can contain absolute paths and source text; do not commit or publish them blindly. The neutral model embeds measured code deliberately.
 - No Swift/C# adapter, automatic suite selection, mutation testing or AI assertion assessment is included.
 

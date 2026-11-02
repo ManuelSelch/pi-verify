@@ -3,10 +3,11 @@ import { promisify } from "node:util";
 import type { GitScope } from "../../git-scope.js";
 import type { ReviewReport, ReviewSection } from "../domain/model.js";
 import { collectConceptualModel, type ConceptualReview } from "../../conceptual-model/collect.js";
+import { importCoverage, type CoverageReport } from "./coverage.js";
 
 const exec = promisify(execFile);
 
-export async function collectReviewReport(scope: GitScope | undefined, evidence: string[]): Promise<ReviewReport> {
+export async function collectReviewReport(scope: GitScope | undefined, evidence: string[], coveragePath?: string): Promise<ReviewReport> {
   let base: string | null = null;
   let tree: string | null = null;
   const limitations: string[] = [];
@@ -24,7 +25,7 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
   if (!base) limitations.push("Feature branch creation base is unavailable; no comparison was selected.");
   const revision = scope?.head ?? null;
   const section = (source: ReviewSection["source"], status: ReviewSection["status"], sectionScope: string, notes: string[], refs: string[] = []): ReviewSection => ({
-    source, status, scope: sectionScope, revision: source === "git" ? revision : null, limitations: notes, evidence: refs,
+    source, status, scope: sectionScope, revision: source === "git" || source === "coverage-collector" ? revision : null, limitations: notes, evidence: refs,
   });
   const unavailable = (name: string) => section("not-collected", "unavailable", name, ["Analysis has not been collected."]);
   let conceptualModel: ConceptualReview | undefined;
@@ -37,8 +38,18 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
       modelFailure = `Conceptual model could not be collected: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
+  let coverage: CoverageReport | undefined;
+  let coverageFailure: string | undefined;
+  if (coveragePath) {
+    if (!scope || !base) coverageFailure = "Coverage unavailable: a verified committed comparison is required.";
+    else {
+      try { coverage = await importCoverage(scope.repository, coveragePath, base, scope.head); }
+      catch (error) { coverageFailure = `Coverage unavailable: ${error instanceof Error ? error.message : String(error)}`; }
+    }
+  }
   return {
     ...(conceptualModel ? { conceptualModel } : {}),
+    ...(coverage ? { coverage } : {}),
     schemaVersion: 1,
     comparison: {
       status: base && tree ? "available" : "unavailable", base, target: revision, targetTree: tree,
@@ -49,7 +60,7 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
     sections: {
       overview: section("agent-authored", "available", "Verification summary and checks", ["Checks are agent-reported, not independently collected."], evidence),
       changes: section("not-collected", "unavailable", "Committed feature branch comparison", [...limitations, "Changed files have not been independently collected."]),
-      testsCoverage: unavailable("Per-test changed-line coverage"),
+      testsCoverage: coverage ? section("coverage-collector", "available", "Imported per-test changed-line coverage", coverage.limitations) : section("not-collected", "unavailable", "Per-test changed-line coverage", [coverageFailure ?? "Coverage has not been collected or supplied."]),
       complexity: unavailable("Named module complexity"),
       architecture: conceptualModel
         ? section("git", "available", "TypeScript review-report domain concepts", ["Structural references only; not runtime interactions."])
