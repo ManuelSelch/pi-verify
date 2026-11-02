@@ -102,6 +102,9 @@ export class ReviewHtmlDriver {
     }
     assert.match(this.html, /@media/);
     assert.match(this.html, /focus-visible/);
+    // A selected non-overview page must not match the default hidden rule.
+    assert.match(this.html, /\.page:not\(#overview\):not\(:target\)\{display:none\}/);
+    assert.match(this.html, /main:has\(\.page:target\) #overview:not\(:target\)\{display:none\}/);
   }
 
   async expectSelectedEvidenceAndPortableLinks(): Promise<void> {
