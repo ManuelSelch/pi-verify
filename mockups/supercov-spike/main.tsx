@@ -5,6 +5,7 @@ import { IconAlertTriangle, IconChevronRight, IconFlask } from "@tabler/icons-re
 import { Agentation } from "agentation";
 import "@mantine/core/styles.css";
 import "./styles.css";
+import { highlight, HighlightedSource, SyntaxLine } from "./highlight";
 
 type Filter = "all" | "changed" | "covering";
 type DiffLine = { kind: "context" | "added" | "removed"; text: string };
@@ -54,12 +55,18 @@ const tests: TestExample[] = [
 ];
 
 function TestDiff({ lines }: { lines: DiffLine[] }) {
-  return <pre className="test-diff" aria-label="Test changes">{lines.map((line, index) => (
-    <div key={index} className={line.kind}>
+  const before = highlight(lines.filter(line => line.kind !== "added").map(line => line.text).join("\n"));
+  const after = highlight(lines.filter(line => line.kind !== "removed").map(line => line.text).join("\n"));
+  let oldLine = 0, newLine = 0;
+  return <pre className="test-diff" aria-label="Test changes">{lines.map((line, index) => {
+    const tokens = line.kind === "removed" ? before[oldLine] : after[newLine];
+    if (line.kind !== "added") oldLine++;
+    if (line.kind !== "removed") newLine++;
+    return <div key={index} className={line.kind}>
       <span className="diff-marker" aria-hidden="true">{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span>
-      <code>{line.text}</code>
-    </div>
-  ))}</pre>;
+      <code><SyntaxLine tokens={tokens}/></code>
+    </div>;
+  })}</pre>;
 }
 
 const pricingFunction = [
@@ -74,12 +81,13 @@ const pricingFunction = [
 ];
 
 function FunctionContext({ highlighted, tone }: { highlighted: number[]; tone: "hit" | "gap" }) {
-  return <pre className="function-context" aria-label="Enclosing function with highlighted changed lines">{pricingFunction.map((text, index) => {
+  const tokens = highlight(pricingFunction.join("\n"));
+  return <pre className="function-context" aria-label="Enclosing function with highlighted changed lines">{pricingFunction.map((_, index) => {
     const line = index + 1;
     return <div key={line} className={highlighted.includes(line) ? `context-${tone}` : ""}>
       <span className="source-line" aria-hidden="true">{line}</span>
       <span className="source-marker" aria-label={highlighted.includes(line) ? tone === "hit" ? "Executed changed line" : "Uncovered changed line" : undefined}>{highlighted.includes(line) ? "+" : " "}</span>
-      <code>{text}</code>
+      <code><SyntaxLine tokens={tokens[index]}/></code>
     </div>;
   })}</pre>;
 }
@@ -89,7 +97,6 @@ function ChangedHits({ lines }: { lines: number[] }) {
     <summary>Show changed-code hits</summary>
     <div className="hit-location"><code>src/pricing.ts:{lines.join(", ")}</code></div>
     <FunctionContext highlighted={lines} tone="hit"/>
-    <p className="note">Green +: changed line executed by this test. Other lines provide function context; no execution claim is made for them.</p>
   </details>;
 }
 
@@ -107,7 +114,7 @@ function TestRow({ item, filter, unsupported, failed }: {
         <span>{item.change}</span>
         <span className={failed ? "failed" : "passed"}>{failed ? "Failed" : "Passed"}</span>
       </div>
-      {filter === "changed" ? <TestDiff lines={item.diff}/> : <pre className="test-source"><code>{item.source}</code></pre>}
+      {filter === "changed" ? <TestDiff lines={item.diff}/> : <HighlightedSource source={item.source}/>}
       {unsupported ? <p className="note">Changed-line attribution is unknown for this test.</p> : item.changedHits.length > 0 ? <>
         <p className="coverage-summary">Executed {item.changedHits.length} changed line in 1 file.</p>
         <ChangedHits lines={item.changedHits}/>
@@ -122,7 +129,6 @@ function UncoveredChanges() {
     <div className="uncovered-detail">
       <code>src/pricing.ts:6</code>
       <FunctionContext highlighted={[6]} tone="gap"/>
-      <p className="note">Amber +: changed line covered by no measured test. Other lines provide function context.</p>
     </div>
   </details>;
 }
@@ -174,14 +180,6 @@ function App() {
         {!visible.length && <p className="empty">No reliable attribution is available. This does not mean no tests cover the change.</p>}
       </section>
       {!unsupported && <UncoveredChanges/>}
-      <footer>
-        <p>Simulated evidence only. Execution does not prove assertion strength.</p>
-        <details className="measurement-details"><summary>Measurement context & limits</summary>
-          <p>This preview uses three individual test cases in one file. Changed tests means added or edited test definitions, not every test in an edited file. The unchanged member-discount test executes changed code.</p>
-          <p>No shared setup was changed in this example. Setup/helper changes will be disclosed separately; setup execution is not silently assigned to test bodies.</p>
-          <p>Final spike: portable local HTML and collector-neutral JSON. No pi-verify integration. Supercov has not been run yet.</p>
-        </details>
-      </footer>
     </main>
     {import.meta.env.DEV && <Agentation/>}
   </MantineProvider>;

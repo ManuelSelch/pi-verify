@@ -1,15 +1,16 @@
-# Supercov spike report — revision 4
+# Supercov spike report — revision 5
 
-- Status: revision 3 remains the approved implemented baseline. Revision 4 is a mockup-only refinement requested by the user: “Tests covering changes”. Order: Tests covering changes / Changed tests / All tests; first mode selected by default. Production report has not been changed for this revision.
+- Status: revision 5 and the Shiki report scenarios approved for implementation by the user: “yes implement”. This covers the reordered filter labels, highlighting and annotated note removals. Earlier revision 3 was the initial implemented baseline.
 - Goal: a small standalone TypeScript per-test coverage report, not a redesign or integration of pi-verify.
 - Layout: compact heading and comparison context; a single three-mode filter with counts; test-name rows initially collapsed. No summary cards, split pane, always-visible source, or per-row metadata in the collapsed state.
 - Controls: Tests covering changes / Changed tests / All tests, with Tests covering changes selected initially. Switching modes resets expanded rows. Multiple rows can be expanded independently.
 - All tests: complete fixture inventory; expand to current test source, location, change classification and outcome.
 - Changed tests: added/edited test definitions only; expand to their unified diff, with all added-test lines shown as additions. A changed file does not automatically classify every contained test as modified.
 - Tests covering changes: strictly measured execution of changed source locations, including unchanged tests. Expand to current test source and a short changed-line-hit summary.
-- Coverage detail: optional nested “Show changed-code hits” shows the whole enclosing function with line numbers. Green + marks only changed locations executed by this test; surrounding lines are neutral context, not inferred execution. No full execution path or per-test “uncovered lines” view.
-- Gaps: separate collapsed report-level section for changed executable lines covered by no measured test, also showing the whole enclosing function. Amber + marks only the uncovered changed location; surrounding context stays neutral.
-- Metadata and limits: secondary footer disclosure; test source has file/line context. If repeated test names are introduced, use a short suite/file qualifier in collapsed rows.
+- Syntax: Shiki 4.6.0, bundled TypeScript grammar and github-light theme, JavaScript regex engine. React renders token content as text, without raw HTML injection. Whole snippets are tokenized to preserve multiline context; before/after diff sides are tokenized separately. No new word-level diff highlighting is included.
+- Coverage detail: optional nested “Show changed-code hits” shows the whole enclosing function with line numbers. Teal gutter + soft teal background mark only changed locations executed by this test; surrounding lines retain neutral backgrounds and syntax-colored text. The explanatory teal paragraph was removed per the user's annotation. No full execution path or per-test “uncovered lines” view.
+- Gaps: separate collapsed report-level section for changed executable lines covered by no measured test, also showing the whole enclosing function. Amber gutter + soft amber background mark only the uncovered changed location; surrounding context stays neutral. The explanatory amber paragraph was removed as requested.
+- Metadata and limits: test source retains file/line context. The mockup footer paragraph and entire Measurement context & limits disclosure were removed per the user's annotations; the header still labels the data as mock. Existing generated-report evidence links and metadata have not been removed. If repeated test names are introduced, use a short suite/file qualifier in collapsed rows.
 - Shared setup/helper modifications must be disclosed separately; this fixture has none. Do not credit setup execution to test bodies without evidence.
 - Responsive: single-column list at every viewport; compact filter sizing on narrow screens.
 - States: default populated preview; ?state=failed marks the added test as failed and shows a run warning; ?state=unsupported preserves inventory and diffs but removes per-test coverage claims and displays unknown rather than zero.
@@ -19,4 +20,4 @@
 - No changes to existing /verify, report bundles, public tools, or existing coverage spike.
 - Reference comparison: borrowed compact disclosures and separate changed-code details from human-review’s Tests section; intentionally omitted its requirement/AI matching and category machinery for this spike.
 - Review is user-led; browser automation and screenshot capture have not been requested.
-- Implementation handover: preserve the existing acceptance outcomes; add behavioral assertions for the approved compact filters, test diffs, and full-function changed-code context. Production visual review remains user-led; offer screenshots separately with permission.
+- Implementation handover: perform Shiki tokenization at generation time with embedded token spans, no browser-side Shiki runtime or network assets; preserve exact source text and safe escaping; leave collection/outcomes unchanged. Existing report evidence access must not silently disappear with the mockup footer simplification; retain it through a compact Run evidence link. Production visual review remains user-led; offer screenshots separately with permission.

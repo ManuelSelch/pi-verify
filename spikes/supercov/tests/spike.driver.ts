@@ -79,12 +79,13 @@ export class SupercovSpikeDriver {
     assert.equal(json.stale, false);
     assert.match(html, /All tests/);
     assert.match(html, /Changed tests/);
-    assert.match(html, /Covering changes/);
+    assert.match(html, /Tests covering changes/);
     assert.match(html, /Show changed-code hits/);
     assert.match(html, /data-line="4" class="context-hit"/);
     assert.match(html, /data-line="1" class=""/);
     assert.match(html, /data-line="7" class="context-gap"/);
-    assert.match(html, /price\(200, false\)/);
+    const sourceBlocks = [...html.matchAll(/<pre class="test-source"><code[^>]*>([\s\S]*?)<\/code><\/pre>/g)];
+    assert.ok(sourceBlocks.some(match => match[1].replace(/<[^>]*>/g, "").includes("price(200, false), 200")), "modified test source survives token markup");
     assert.ok(!/<details[^>]*\sopen(?:\s|>)/.test(html), "all disclosures begin collapsed");
     assert.ok(!/<(?:script|link|img)[^>]*(?:src|href)=/.test(html), "no external assets");
     assert.ok(!html.includes(this.fixture.directory), "portable report has no temporary absolute paths");

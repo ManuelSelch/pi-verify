@@ -43,26 +43,29 @@ Repeat `--source` and `--test` to declare scope. Paths for these two options are
 
 ## Report behavior
 
-- Initially only test-name rows and the three filter counts are visible; all details are collapsed.
-- **All tests:** recorded individual tests plus recognized static declarations missing evidence (outcome/attribution unknown). Expand to the measured test source and metadata.
+- Filter order: **Tests covering changes / Changed tests / All tests**. Tests covering changes is selected initially; only matching test-name rows are visible and all details are collapsed.
+- **Tests covering changes:** tests with exact observed execution of changed source locations, including unchanged tests. This does not imply their assertions detect a defect.
 - **Changed tests:** added or edited **test definitions**, not every test in an edited file. Expansion shows a unified test diff; added tests are entirely additions.
-- **Covering changes:** tests with exact observed execution of changed source locations, including unchanged tests. This does not imply their assertions detect a defect.
-- “Show changed-code hits” expands the whole enclosing function. Green `+` marks only changed locations executed by that test. Other lines are neutral context, not a claimed full execution path. Module-level locations use nearby lines instead.
-- Report-level uncovered changed locations expand separately, with amber `+` highlights and full-function context. Non-executable or unknown locations do not become false coverage gaps.
-- Changed shared setup/helper/import text, removed test definitions, setup records and measurement limitations are disclosed separately.
+- **All tests:** recorded individual tests plus recognized static declarations missing evidence (outcome/attribution unknown). Expand to the measured test source and metadata.
+- Source, both sides of test diffs, and enclosing functions have Shiki TypeScript syntax colors (github-light). The before/after sides of a diff are tokenized separately to preserve multiline comment/template state. There is no new word-level diff algorithm.
+- “Show changed-code hits” expands the whole enclosing function. A teal gutter and soft teal background mark only changed locations executed by that test. Other lines have neutral backgrounds and syntax-colored text, not a claimed full execution path. Module-level locations use nearby lines instead.
+- Report-level uncovered changed locations expand separately, with amber gutters/soft backgrounds and full-function context. Non-executable or unknown locations do not become false coverage gaps.
+- The compact **Run evidence** link opens a separate local evidence page with metadata, measurement limits, setup records, removed tests and all existing JSON/log download links. The main report omits the explanatory footer and teal/amber paragraphs removed during mockup review. Failure/stale/unknown warnings remain visible where applicable.
 - Filter interactions reset expanded rows. Repeated names receive file/line qualifiers.
 
-The HTML is self-contained, escapes source/name/diff text, and uses no external assets. Copy the entire scenario output directory to retain relative evidence links. Avoid sharing its fixture directory or raw evidence without inspecting them.
+The HTML is self-contained, escapes source/name/diff/token text, and uses no external assets. Shiki 4.6.0 runs only in the report generator with a bundled TypeScript grammar, github-light theme and JavaScript regex engine; the browser gets escaped token spans and no highlighting runtime or grammar downloads. Whitespace, original line separators and JSON source snapshots are preserved. Copy the entire scenario output directory to retain the evidence page and relative download links. Avoid sharing its fixture directory or raw evidence without inspecting them.
 
 ## Architecture and artifacts
 
 - [analysis.ts](src/analysis.ts): TypeScript AST extraction of static test definitions/enclosing functions, target-side Git hunk locations, small test-definition diffs.
 - [collector.ts](src/collector.ts): invokes the pinned local Supercov, selects an immutable run ID, follows test-inventory pagination, reads individual tests and changed-line obligations through JSON CLI queries, checks completeness, and normalizes evidence. It does not read Supercov's private binary index. Inherited `NODE_TEST_CONTEXT` is removed at this independent runner boundary so running the spike inside node:test does not suppress the target runner.
 - [model.ts](src/model.ts): versioned, collector-neutral individual test evidence, outcomes, source hashes/snapshots, change classifications, changed-line status and setup records.
-- [report.ts](src/report.ts): pure HTML rendering plus JSON/HTML writes. Small inline filtering script; native disclosures provide keyboard-operable expansion.
+- [highlight.ts](src/highlight.ts): synchronous generation-time Shiki tokenization with explicit language/theme imports; HTML-safe token spans, whitespace preservation, and independent diff sides. Shared text escaping lives in [html.ts](src/html.ts).
+- [report.ts](src/report.ts): main/evidence HTML rendering plus JSON/HTML writes. Small inline filtering script; native disclosures provide keyboard-operable expansion. Syntax token spans do not interfere with Git-diff backgrounds or coverage gutters.
 - [acceptance.test.ts](tests/acceptance.test.ts): durable integration scenarios with fresh shared driver setup/disposal in `beforeEach`/`afterEach`.
+- [highlighting.test.ts](tests/highlighting.test.ts): approved scenarios for syntax colors, unchanged source/diff text, neutral context, offline safety and preserved evidence access. [highlight.test.ts](tests/highlight.test.ts) also checks LF/CRLF/CR and multiline lexical state.
 
-Each scenario writes `index.html`, `report.json`, adapter-specific `supercov-evidence.json`, `run-id.txt`, and stdout/stderr logs. The demo also preserves its generated Git fixture and `.supercov` run store for inspection. Generated dependencies, reports and raw evidence are ignored by Git and are not committed.
+Each measured scenario writes `index.html`, `evidence.html`, `report.json`, adapter-specific `supercov-evidence.json`, `run-id.txt`, and stdout/stderr logs. The demo also preserves its generated Git fixture and `.supercov` run store for inspection. Generated dependencies, reports and raw evidence are ignored by Git and are not committed.
 
 At generation, source/test/package snapshots and hashes, HEAD, and package/lockfile/tsconfig hashes are rechecked. Added/deleted configuration files also invalidate evidence. Stale reports preserve historical snapshots and observed outcomes but suppress current changed-line attribution. A saved HTML file cannot automatically detect later edits to a checkout: rerun collection before relying on it for another revision.
 
@@ -78,4 +81,4 @@ At generation, source/test/package snapshots and hashes, HEAD, and package/lockf
 - Ordinary raw evidence/logs can contain absolute paths and source text; do not commit or publish them blindly. The neutral model embeds measured code deliberately.
 - No Swift/C# adapter, automatic suite selection, mutation testing or AI assertion assessment is included.
 
-The approved [mockup revision 3](../../mockups/supercov-spike/DESIGN.md) remains preserved. Rendering/interaction logic is tested at code boundaries; implemented-browser visual comparison is a separate user-approved review.
+The approved [mockup revision 5](../../mockups/supercov-spike/DESIGN.md) remains preserved. Rendering/interaction logic is tested at code boundaries; implemented-browser visual comparison is a separate user-approved review.

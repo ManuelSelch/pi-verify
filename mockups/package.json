@@ -8,7 +8,8 @@
     "@mantine/hooks": "7.17.8",
     "@tabler/icons-react": "3.34.1",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "shiki": "4.6.0"
   },
   "devDependencies": {
     "@types/react": "18.3.23",
