@@ -24,7 +24,7 @@ test("Jest in a repository subdirectory reports per-test TypeScript coverage", a
   await git("init", "-q"); await git("add", "frontend/package.json", "frontend/jest.config.cjs", "frontend/src", "frontend/tests");
   await git("-c", "user.name=Example", "-c", "user.email=example@example.invalid", "commit", "-qm", "base");
   const base = await git("rev-parse", "HEAD");
-  await writeFile(path.join(root, "src/calculate.ts"), "export const first = () => 1 + 0;\nexport const second = () => 2;\n");
+  await writeFile(path.join(root, "src/calculate.ts"), "export const first = () => {\n\n  return 1 + 0;\n};\nexport const second = () => 2;\n");
   await git("add", "frontend/src/calculate.ts"); await git("-c", "user.name=Example", "-c", "user.email=example@example.invalid", "commit", "-qm", "change");
 
   const measurement = await measure({ root, base, sourceFiles: ["src/calculate.ts"], testFiles: ["tests/calculate.test.tsx"], outputDirectory: path.join(repo, "output") });
@@ -37,12 +37,14 @@ test("Jest in a repository subdirectory reports per-test TypeScript coverage", a
   assert.equal(first.outcome, "passed");
   assert.ok(first.changedHits.some(item => item.file === "src/calculate.ts" && item.line === 1));
   assert.equal(second.changedHits.length, 0);
+  assert.equal(report.changedLines.find(item => item.line === 2)?.status, "not-executable");
+  assert.equal(report.changedLines.find(item => item.line === 3)?.status, "covered");
   assert.ok(first.source?.includes("first"));
   assert.equal(first.change, "unchanged");
   assert.equal(report.comparison.projectPath, "frontend");
   await writeReport(report, path.join(repo, "output"));
   const imported = await importCoverage(repo, path.join(repo, "output/report.json"), base, await git("rev-parse", "HEAD"));
-  assert.equal(imported.tests.find(item => item.name === first.name)?.changedHits.length, 1);
+  assert.equal(imported.tests.find(item => item.name === first.name)?.changedHits.length, first.changedHits.length);
   const parameterized = report.tests.filter(item => item.name.includes("parameter"));
   assert.equal(parameterized.length, 2);
   assert.ok(parameterized.every(item => item.outcome === "passed" && item.change === "unknown" && item.source === null));

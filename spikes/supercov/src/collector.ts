@@ -198,6 +198,10 @@ export async function measure(options: Options): Promise<Measurement> {
         continue;
       }
       const data = page.data;
+      // Supercov omits line coverage when there is no line obligation. Such a
+      // line may still contain decision/branch obligations; preserve their counts.
+      if (data.covered === undefined && data.lineObligation === false && Number.isInteger(data.totalAnchored) && Number.isInteger(data.coveredAnchored) && Number(data.totalAnchored) >= 0 && Number(data.coveredAnchored) >= 0 && Number(data.coveredAnchored) <= Number(data.totalAnchored))
+        data.covered = Number(data.coveredAnchored) > 0;
       if (page.pagination?.hasMore || typeof data.totalAnchored !== "number" || typeof data.covered !== "boolean" || !Array.isArray(data.tests) || !Array.isArray(data.limitations))
         throw new Error("Incomplete changed-line evidence");
       rawLines[`${file}:${line}`] = data as unknown as LineEvidence;
