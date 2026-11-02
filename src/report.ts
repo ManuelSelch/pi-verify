@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ReviewReport } from "./review-report/domain/model.js";
+import { reportHtml } from "./review-report/ui/report-html.js";
 
 export type Outcome = "passed" | "failed" | "skipped" | "unknown";
 
@@ -48,13 +49,15 @@ export function reportJson(report: VerificationReport): string {
   return JSON.stringify({ schemaVersion: 1, ...report }, null, 2) + "\n";
 }
 
-export async function writeReportBundle(directory: string, report: VerificationReport): Promise<{ jsonPath: string; markdownPath: string }> {
+export async function writeReportBundle(directory: string, report: VerificationReport): Promise<{ jsonPath: string; markdownPath: string; htmlPath: string }> {
   await mkdir(directory, { recursive: true });
   const jsonPath = path.join(directory, "pi-verify-report.json");
   const markdownPath = path.join(directory, "pi-verify-report.md");
+  const htmlPath = path.join(directory, "pi-verify-report.html");
   await writeFile(jsonPath, reportJson(report));
   await writeFile(markdownPath, reportMarkdown(report, directory));
-  return { jsonPath, markdownPath };
+  await writeFile(htmlPath, reportHtml(report, directory));
+  return { jsonPath, markdownPath, htmlPath };
 }
 
 function markdownFileLink(filePath: string, reportDirectory?: string, label = filePath): string {

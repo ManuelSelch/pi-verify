@@ -22,6 +22,7 @@ test("emits a completed report once without triggering another turn", () => {
       markdown: "# Verification Report",
       jsonPath: "/tmp/report.json",
       markdownPath: "/tmp/report.md",
+      htmlPath: "/tmp/report.html",
       auditDir: "/tmp/audit",
       verdict: "VERIFIED",
       allowed: true,
@@ -43,6 +44,7 @@ test("emits a completed report once without triggering another turn", () => {
       auditDir: "/tmp/audit",
       jsonPath: "/tmp/report.json",
       markdownPath: "/tmp/report.md",
+      htmlPath: "/tmp/report.html",
     },
   });
 });

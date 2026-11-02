@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { reportJson, reportMarkdown, type VerificationReport, writeReportBundle } from "../src/report.js";
+import { reportHtml } from "../src/review-report/ui/report-html.js";
 
 test("JSON preserves added tests and checks", () => {
   const report: VerificationReport = {
@@ -69,12 +70,30 @@ test("Markdown renders an executive summary, compact source, simple dates, and f
   assert.doesNotMatch(markdown, /## Gate/);
 });
 
+test("HTML refuses artifact paths outside the bundle and does not embed SVG", () => {
+  const directory = path.resolve("bundle/reports");
+  const html = reportHtml({
+    goal: "Evidence safety",
+    verdict: "UNKNOWN",
+    artifacts: [
+      { label: "Outside", path: path.resolve("outside.html"), type: "file" },
+      { label: "SVG", path: path.resolve("bundle/artifacts/image.svg"), type: "screenshot" },
+    ],
+  }, directory);
+
+  assert.match(html, /Artifact unavailable: not inside this bundle/);
+  assert.match(html, /href="\.\.\/artifacts\/image\.svg" download/);
+  assert.doesNotMatch(html, /<img\b/);
+  assert.doesNotMatch(html, /href="[^\"]*outside\.html/);
+});
+
 test("writeReportBundle creates durable JSON and Markdown files", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "pi-verify-report-"));
   try {
     const paths = await writeReportBundle(root, { goal: "demo", verdict: "VERIFIED" });
     assert.match(await readFile(paths.jsonPath, "utf8"), /schemaVersion/);
     assert.match(await readFile(paths.markdownPath, "utf8"), /Verification Report/);
+    assert.match(await readFile(paths.htmlPath, "utf8"), /Verification report/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

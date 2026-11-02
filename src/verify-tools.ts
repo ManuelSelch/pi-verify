@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { reportMarkdown, writeReportBundle, type VerificationReport } from "./report.js";
 import { collectGitScope, type GitScope } from "./git-scope.js";
@@ -35,6 +36,7 @@ export type PendingVerificationReport = {
   markdown: string;
   jsonPath: string;
   markdownPath: string;
+  htmlPath: string;
   auditDir: string;
   verdict: string;
   allowed: boolean;
@@ -167,7 +169,8 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
       // The on-disk report keeps relative links so VS Code can follow them, but
       // pi-chat resolves every local link against the session project directory,
       // so the chat copy needs absolute file:// links instead.
-      const markdown = reportMarkdown(report);
+      const htmlUrl = pathToFileURL(reportPaths.htmlPath).href.replaceAll("(", "%28").replaceAll(")", "%29");
+      const markdown = `${reportMarkdown(report)}\n[Open HTML review report](${htmlUrl})\n`;
       state.pendingReport = { markdown, ...reportPaths, auditDir: current.reportDir, verdict: report.verdict, allowed: report.verdict !== "FAILED" && report.verdict !== "PARTIAL" ? true : false };
       return { content: text({ verdict: report.verdict, allowed: state.pendingReport.allowed, reportPaths, reportDir: current.reportDir }), details: { verdict: report.verdict, allowed: state.pendingReport.allowed, reportPaths, reportDir: current.reportDir } };
     },
