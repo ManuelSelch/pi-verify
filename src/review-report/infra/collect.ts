@@ -63,7 +63,7 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
       testsCoverage: coverage ? section("coverage-collector", "available", "Imported per-test changed-line coverage", coverage.limitations) : section("not-collected", "unavailable", "Per-test changed-line coverage", [coverageFailure ?? "Coverage has not been collected or supplied."]),
       complexity: unavailable("Named module complexity"),
       architecture: conceptualModel
-        ? section("git", "available", "TypeScript review-report domain concepts", ["Structural references only; not runtime interactions."])
+        ? section("git", "available", "Committed conceptual diagram comparison", ["Diagram semantics only; not runtime interactions.", ...conceptualModel.guardrail.diagnostics])
         : section("not-collected", "unavailable", "Conceptual model", [modelFailure ?? "No supported committed conceptual model was collected."]),
       evidence: section("agent-authored", "available", "Deliberately attached artifacts", [], evidence),
     },
