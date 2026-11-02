@@ -1,0 +1,17 @@
+{
+  "name": "pi-verify-supercov-spike",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "demo": "node demo.ts",
+    "collect": "node collect.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.0",
+    "supercov": "4.22.0",
+    "typescript": "5.9.3"
+  }
+}

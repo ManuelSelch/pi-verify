@@ -1,0 +1,22 @@
+# Supercov spike report — revision 3
+
+- Status: revision 3 approved for implementation by the user: “approved. Now implement the spike”. Approval also covers the existing acceptance scenario drafts and the refined compact report interactions.
+- Goal: a small standalone TypeScript per-test coverage report, not a redesign or integration of pi-verify.
+- Layout: compact heading and comparison context; a single three-mode filter with counts; test-name rows initially collapsed. No summary cards, split pane, always-visible source, or per-row metadata in the collapsed state.
+- Controls: All tests / Changed tests / Covering changes. Switching modes resets expanded rows. Multiple rows can be expanded independently.
+- All tests: complete fixture inventory; expand to current test source, location, change classification and outcome.
+- Changed tests: added/edited test definitions only; expand to their unified diff, with all added-test lines shown as additions. A changed file does not automatically classify every contained test as modified.
+- Covering changes: strictly measured execution of changed source locations, including unchanged tests. Expand to current test source and a short changed-line-hit summary.
+- Coverage detail: optional nested “Show changed-code hits” shows the whole enclosing function with line numbers. Green + marks only changed locations executed by this test; surrounding lines are neutral context, not inferred execution. No full execution path or per-test “uncovered lines” view.
+- Gaps: separate collapsed report-level section for changed executable lines covered by no measured test, also showing the whole enclosing function. Amber + marks only the uncovered changed location; surrounding context stays neutral.
+- Metadata and limits: secondary footer disclosure; test source has file/line context. If repeated test names are introduced, use a short suite/file qualifier in collapsed rows.
+- Shared setup/helper modifications must be disclosed separately; this fixture has none. Do not credit setup execution to test bodies without evidence.
+- Responsive: single-column list at every viewport; compact filter sizing on narrow screens.
+- States: default populated preview; ?state=failed marks the added test as failed and shows a run warning; ?state=unsupported preserves inventory and diffs but removes per-test coverage claims and displays unknown rather than zero.
+- All data is deterministic and simulated. Alternate states illustrate messaging, not actual collector behavior.
+- No exports or collection are wired in this mockup. Final spike should generate portable local HTML and a collector-neutral JSON companion.
+- Final evidence must preserve observed failure, reject stale source and distinguish changed tests from covering tests.
+- No changes to existing /verify, report bundles, public tools, or existing coverage spike.
+- Reference comparison: borrowed compact disclosures and separate changed-code details from human-review’s Tests section; intentionally omitted its requirement/AI matching and category machinery for this spike.
+- Review is user-led; browser automation and screenshot capture have not been requested.
+- Implementation handover: preserve the existing acceptance outcomes; add behavioral assertions for the approved compact filters, test diffs, and full-function changed-code context. Production visual review remains user-led; offer screenshots separately with permission.

@@ -65,6 +65,10 @@ The review sections identify their source, scope, revision, status, limitations,
 
 Each new bundle also contains a standalone HTML report. `verify_finish` returns its path with the existing JSON and Markdown paths; the one-time Pi message links to it without triggering a model turn. The report uses embedded styles and no network assets or scripts, and links only to selected artifacts inside the bundle using relative paths. Supported raster screenshots appear at their natural size up to the available width; logs, videos, SVGs and other files are downloadable rather than embedded. Copy the whole bundle to preserve evidence links. Navigation uses URL fragments and CSS; a modern browser supporting `:has()` is required to switch sections. HTML is escaped and the report uses a restrictive content security policy; attached files themselves remain untrusted.
 
+## Standalone TypeScript coverage spike
+
+[Supercov per-test coverage spike](spikes/supercov/README.md) provides a separate runnable experiment and compact HTML/JSON reports, including changed-test diffs and full-function context for changed-code hits. It is not connected to `/verify` or the review sections described above.
+
 ## Verification tools
 
 - `verify_start({ goal })`: infer the source project from the session cwd and return acceptance criteria. Runs are isolated under `~/.pi/agent/audits/<project-key>/<unique-run>/`.
