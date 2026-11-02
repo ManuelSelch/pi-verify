@@ -4,7 +4,6 @@
 
 - Design: [mockup revision 12](../../mockups/review-mvp/DESIGN.md), approved by the user.
 - This is a plan, not authorization to implement or approval of acceptance scenarios. Before production work, draft executable scenarios and obtain explicit approval; the earlier drafts were removed at the user's request.
-- Keep all changes uncommitted unless the user changes that instruction.
 
 ## Outcome and scope
 
@@ -13,13 +12,6 @@ Add a local HTML review report to pi-verify. Start with this repository's TypeSc
 Retain `/verify`, prompt-first execution through ordinary tools, `verify_attach`, `verify_finish`, the durable report bundle, the one-time Pi/pi-chat message, and JSON and Markdown outputs. Add HTML as a companion; do not silently replace or alter existing verification outcomes. Continue to distinguish agent-reported checks from independently collected analysis. Explicitly show absent, failed, incomplete, unsupported or stale inputs rather than an empty success.
 
 Out of scope: ticket-to-test requirement mapping, generic endpoint/call-graph complexity, full support for every test runner or language, automatic LLM judgments, dashboards or external services. Evidence may contain sensitive data; only deliberately selected artifacts should be bundled.
-
-## Proposed data and workflow
-
-1. Resolve and record a comparison base and target, their identities, source snapshot/fingerprint and whether uncommitted files are included. Let the caller explicitly select a trunk/base when automatic detection is ambiguous; do not silently change it. On local `main`, comparison against local `main` is empty. If the requested current comparison has no relevant changes, say so and separately demonstrate a recent relevant committed comparison, clearly labelled with both revisions.
-2. Keep deterministic analysis separate from agent-authored summaries. Store a versioned structured report with each section's source, measurement scope, revision, status, limitations and references to evidence. Ensure HTML renders unavailable/partial states without inventing data. Preserve historic bundles without migration or rewriting; decide the new schema contract explicitly when scenarios are approved.
-3. Collect expensive or potentially side-effecting test measurements only through an explicit, user-approved command/workflow, not implicitly as a side effect of `verify_finish`. Packaging and report rendering must not silently rerun tests. A collected result must be attributable to the exact measured revision and source snapshot; stale or mismatched data is rejected or explicitly unavailable.
-4. Generate a self-contained or portable local report bundle with safely escaped content and relative artifact links. Keep the existing Markdown chat message and include a link to HTML without triggering another model turn. Preserve screenshot/log/video attachments and report limitations accurately.
 
 ## Slices
 
@@ -60,11 +52,9 @@ Out of scope: ticket-to-test requirement mapping, generic endpoint/call-graph co
 - Run approved scenarios and regression tests, including Git revision edge cases, partial/failed collection, source-map fidelity, test identity and stale input, module/diagram drift, accessibility and escaping. Test the generated report and portable evidence links at the appropriate boundaries.
 - Offer comparison of implemented UI screenshots with the approved mockup; obtain explicit permission before agent-owned browser automation or screenshot capture. Mockup preview alone does not verify production UI.
 - Run the finished analysis on the requested branch/base, show the actual results and, when needed, a clearly labelled relevant recent comparison. Record commands, failures and gaps. Update current documentation and supported-stack/configuration instructions.
-- Leave project changes uncommitted as requested. Preserve the approved mockup and scenario examples; do not remove unrelated files or rewrite historical bundles.
 
 ## Decisions to confirm with scenario approval
 
-- How should users choose trunk/base and which uncommitted changes belong in a measurement?
 - How are named modules, test categories and component boundaries declared for this repository?
 - Which test collection command is acceptable if per-test attribution requires rerunning tests or disabling concurrency?
 - Is static import-based checking the desired architecture guardrail, given that it cannot prove runtime/deployment relationships?
