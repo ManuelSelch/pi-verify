@@ -83,7 +83,7 @@ At generation, source/test/package snapshots and hashes, HEAD, and package/lockf
 
 ## Scope and limits
 
-- Automated fixtures cover native and compiled TypeScript with `node:test`, plus Jest 30 with ts-jest and jsdom in a repository subdirectory. A small separate Next.js Jest/TSX example was also run manually. These do not establish support for every Jest configuration, Next.js transformation, build system, runner, browser, child process or concurrency pattern. No CSMM project data was used in validation.
+- Automated fixtures cover native and compiled TypeScript with `node:test`, plus Jest 30 with ts-jest and jsdom in a repository subdirectory. A small separate Next.js Jest/TSX example was also run manually. These do not establish support for every Jest configuration, Next.js transformation, build system, runner, browser, child process or concurrency pattern.
 - Static recovery understands direct `test`, `it`, and `describe` calls with literal names. Jest parameterized tests retain measured identity/outcomes, but their source/diff classification is unknown. Aliases, parameterized/generated tests, `t.test`, and wrapper APIs are not recovered automatically. Measured identities without unique source matches remain visible with an explicit limitation. Same-scope duplicate names cannot be classified as changed reliably.
 - Renamed tests appear as removed plus added. Moving a test between files has the same limitation. A changed helper is not attributed to every test by guesswork.
 - Source locations follow Supercov's executable obligation/line model, not statement-level change semantics. A line hit does not establish which changed expression was evaluated when several expressions share that line.
