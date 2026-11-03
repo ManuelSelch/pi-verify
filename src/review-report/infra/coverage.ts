@@ -22,15 +22,19 @@ const location = (v: unknown): v is Location => object(v) && typeof v.file === "
 
 // Only the neutral Supercov report is accepted, and every captured file must equal
 // the committed target. This prevents a worktree measurement masquerading as HEAD.
-export async function importCoverage(root: string, file: string, base: string, target: string): Promise<CoverageReport> {
+// Auto-import may allow a later target revision when the measured sources, tests and
+// configuration still match the committed target; explicit imports require an exact match.
+export async function importCoverage(root: string, file: string, base: string, target: string, options: { requireMatchingComparison?: boolean } = {}): Promise<CoverageReport> {
   const value: unknown = JSON.parse(await readFile(file, "utf8"));
   if (!object(value) || value.schemaVersion !== 1 || !object(value.collector) || value.collector.name !== "Supercov" || typeof value.collector.version !== "string" || !object(value.run) || typeof value.run.id !== "string" || typeof value.run.measuredAt !== "string" || !Number.isInteger(value.run.exitCode) || !stringArray(value.run.command) || !object(value.comparison) || value.comparison.workingTree !== true || typeof value.comparison.projectPath !== "string" || typeof value.stale !== "boolean" || !object(value.sources) || !Array.isArray(value.tests) || !Array.isArray(value.changedLines) || !Array.isArray(value.setups) || !Array.isArray(value.deletedTests) || !stringArray(value.limitations)) throw new Error("Unsupported or incomplete coverage report");
   if (value.stale) throw new Error("Coverage report is stale");
   const repository = (await exec("git", ["rev-parse", "--show-toplevel"], { cwd: root })).stdout.trim();
   const git = async (...args: string[]) => (await exec("git", args, { cwd: repository, maxBuffer: 20 * 1024 * 1024 })).stdout;
   const [resolvedBase, resolvedTarget] = await Promise.all([git("rev-parse", "--verify", `${base}^{commit}`), git("rev-parse", "--verify", `${target}^{commit}`)]);
-  if (value.comparison.base !== resolvedBase.trim()) throw new Error("Coverage base does not match the review base");
-  if (value.comparison.head !== resolvedTarget.trim()) throw new Error("Coverage target does not match the review target");
+  if (options.requireMatchingComparison !== false) {
+    if (value.comparison.base !== resolvedBase.trim()) throw new Error("Coverage base does not match the review base");
+    if (value.comparison.head !== resolvedTarget.trim()) throw new Error("Coverage target does not match the review target");
+  }
   let raw: unknown;
   try { raw = JSON.parse(await readFile(path.join(path.dirname(file), "supercov-evidence.json"), "utf8")); }
   catch { throw new Error("Coverage raw evidence is missing or invalid"); }

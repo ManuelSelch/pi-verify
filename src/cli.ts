@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { collectGitScope, type GitScope } from "./git-scope.js";
 import { collectConceptualModel } from "./conceptual-model/collect.js";
-import { importCoverage } from "./review-report/infra/coverage.js";
+import { importCoverage, type CoverageReport } from "./review-report/infra/coverage.js";
 import { writeReportBundle } from "./report.js";
 import type { ReviewReport, ReviewSection } from "./review-report/domain/model.js";
 
@@ -118,12 +118,19 @@ async function main() {
   const { base, target, tree } = await comparison(scope, opts["--base"], opts["--target"]);
   const model = await collectConceptualModel(scope.repository, base, target);
   const defaultCoverage = path.join(scope.repository, ".pi-verify", "coverage", "report.json");
-  let coveragePath = opts["--coverage-report"] ? path.resolve(opts["--coverage-report"]) : undefined;
-  if (!coveragePath) {
-    try { await access(defaultCoverage); coveragePath = defaultCoverage; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  let coverage: CoverageReport | undefined;
+  if (opts["--coverage-report"]) coverage = await importCoverage(scope.repository, path.resolve(opts["--coverage-report"]), base, target);
+  else {
+    let available = true;
+    try { await access(defaultCoverage); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") available = false; else throw error; }
+    // A later commit that leaves the measured sources, tests and configuration unchanged
+    // keeps the evidence valid; any other mismatch is ignored rather than blocking review.
+    if (available) {
+      try { coverage = await importCoverage(scope.repository, defaultCoverage, base, target, { requireMatchingComparison: false }); }
+      catch (error) { console.error(`Coverage not imported: ${error instanceof Error ? error.message : String(error)}`); }
+    }
   }
-  const coverage = coveragePath ? await importCoverage(scope.repository, coveragePath, base, target) : undefined;
   const section: ReviewSection = { status: "unavailable", source: "not-collected", scope: "Not collected in standalone review", revision: null, limitations: ["Not collected in this standalone review."], evidence: [] };
   const hasModel = model.basePresent || model.targetPresent;
   const review: ReviewReport = {

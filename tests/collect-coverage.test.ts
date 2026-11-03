@@ -14,7 +14,7 @@ test("collects TypeScript coverage and automatically imports it into the review"
   const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "pipe" }).toString().trim();
   const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: dir, encoding: "utf8", timeout: 100000 });
   try {
-    mkdirSync(path.join(dir, "src", "nested"), { recursive: true }); mkdirSync(path.join(dir, "tests", "nested"), { recursive: true });
+    mkdirSync(path.join(dir, "src", "nested"), { recursive: true }); mkdirSync(path.join(dir, "tests", "nested"), { recursive: true }); mkdirSync(path.join(dir, "docs"));
     writeFileSync(path.join(dir, ".gitignore"), ".pi-verify/\n.supercov/\n");
     writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: "module", scripts: { test: "node --experimental-strip-types --test tests/*.test.ts tests/nested/*.test.ts" } }));
     writeFileSync(path.join(dir, "src/math.ts"), "export const add = (a: number, b: number) => a + b;\n");
@@ -42,11 +42,22 @@ test("collects TypeScript coverage and automatically imports it into the review"
     assert.equal(report.review.sections.testsCoverage.status, "available");
     assert.ok(report.review.coverage.tests.some((item: { name: string }) => item.name === "add"));
 
+    // A later commit that leaves measured sources, tests and configuration unchanged keeps the evidence.
+    writeFileSync(path.join(dir, "docs", "note.md"), "Documentation only.\n");
+    git("add", "docs/note.md"); git("commit", "-m", "docs only");
+    const keptReview = run("review");
+    assert.equal(keptReview.status, 0, keptReview.stderr);
+    const keptReport = JSON.parse(readFileSync(path.join(dir, ".pi-verify", "pi-verify-report.json"), "utf8"));
+    assert.equal(keptReport.review.sections.testsCoverage.status, "available");
+
+    // A measured source change invalidates the evidence without blocking a new review.
     writeFileSync(path.join(dir, "src/math.ts"), "export const add = (a: number, b: number) => a + b + 1;\n");
     git("commit", "-am", "change after measurement");
-    const staleReview = run("review");
-    assert.notEqual(staleReview.status, 0);
-    assert.match(staleReview.stderr, /Coverage target does not match/);
+    const changedReview = run("review");
+    assert.equal(changedReview.status, 0, changedReview.stderr);
+    assert.match(changedReview.stderr, /Coverage not imported/);
+    const changedReport = JSON.parse(readFileSync(path.join(dir, ".pi-verify", "pi-verify-report.json"), "utf8"));
+    assert.equal(changedReport.review.sections.testsCoverage.status, "unavailable");
 
     const failed = run("collect-coverage");
     assert.equal(failed.status, 1, failed.stderr);
