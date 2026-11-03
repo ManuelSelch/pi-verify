@@ -114,7 +114,7 @@ For a project other than pi-verify itself:
 }
 ```
 
-The guardrail reads committed TypeScript sources through Git and resolves relative imports, including `.js` specifiers that point at `.ts` sources, while skipping tests, declarations, `node_modules` and `dist`. Folders must match the diagram's boxes both ways, and every cross-folder import must be an arrow.
+The guardrail reads TypeScript sources and resolves relative imports, including `.js` specifiers that point at `.ts` sources, plus tsconfig `compilerOptions.paths` aliases such as `@/*` (read from `tsconfig.json` next to the package; `extends` is not followed). Tests, declarations, `node_modules` and `dist` are skipped. Folders must match the diagram's boxes both ways, and every cross-folder import must be an arrow.
 
 By default arrows are an allow-list: every code dependency must be an arrow, while an allowed-but-unused arrow is reported as "Allowed but unused" instead of failing. `"strict": true` fails unused arrows too. A file directly under the root belongs to no slice, and unresolved specifiers (assets, external files) are ignored rather than reported. Visible labels, box positions and styling belong to the human; only identities and arrow direction are checked, so moving or resizing a box is not a change.
 

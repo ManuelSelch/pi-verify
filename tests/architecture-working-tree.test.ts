@@ -39,6 +39,15 @@ test("checkWorkingTree accepts a matching tree and reports an undeclared depende
   assert.match(checkWorkingTree(dir, configuration).errors.join(" "), /undeclared association infra->domain/);
 });
 
+test("checkWorkingTree follows tsconfig path aliases", (t) => {
+  const { dir, write } = scratch(t);
+  write("tsconfig.json", JSON.stringify({ compilerOptions: { paths: { "@/*": ["./src/*"] } } }));
+  write("docs/architecture.drawio", drawing(["app", "components"], ["app->components"]));
+  write("src/app/page.ts", `import { Button } from "@/components/button"; export const page = Button;`);
+  write("src/components/button.ts", `export const Button = 1;`);
+  assert.deepEqual(checkWorkingTree(dir, { diagram: "docs/architecture.drawio", root: "src", strict: false }), { errors: [], unused: [] });
+});
+
 test("checkWorkingTree fails loudly on a missing diagram", (t) => {
   const { dir, write } = scratch(t);
   write("src/domain/model.ts", "export const model = 1;");

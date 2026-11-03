@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkArchitecture, codeArchitectureModel, diagramArchitectureModel, diffArchitectureModel, unusedEdges } from "../src/architecture/model.js";
+import path from "node:path";
+import { aliasesFromConfig, checkArchitecture, codeArchitectureModel, diagramArchitectureModel, diffArchitectureModel, unusedEdges } from "../src/architecture/model.js";
 import { architectureHtml } from "../src/architecture/html.js";
 
 const files = (entries: Record<string, string>) => new Map(Object.entries(entries));
@@ -31,6 +32,27 @@ test("extracts top-level folders and cross-folder imports, skipping tests and ro
   const model = codeArchitectureModel({ files: source });
   assert.deepEqual(model.slices.map(slice => slice.name), ["domain", "infra", "report", "ui"]);
   assert.deepEqual(model.edges.map(edge => edge.key), dependencies);
+});
+
+test("resolves tsconfig path aliases into cross-folder edges", () => {
+  const base = path.resolve("/tmp/pi-verify-alias-project");
+  const model = codeArchitectureModel({
+    files: files({
+      "app/page.ts": `import { Button } from "@/components/button"; export const page = Button;`,
+      "components/button.ts": `import { theme } from "@/config/theme"; export const Button = theme;`,
+      "config/theme.ts": `export const theme = 1;`,
+    }),
+    root: path.join(base, "src"),
+    aliases: [{ pattern: "@/*", targets: ["./src/*"] }],
+    aliasBase: base,
+  });
+  assert.deepEqual(model.edges.map(edge => edge.key), ["app->components", "components->config"]);
+});
+
+test("reads tsconfig compilerOptions.paths and ignores a configuration without paths", () => {
+  const base = path.resolve("/tmp/pi-verify-alias-project");
+  assert.deepEqual(aliasesFromConfig("tsconfig.json", JSON.stringify({ compilerOptions: { paths: { "@/*": ["./src/*"] } } }), base), { aliases: [{ pattern: "@/*", targets: ["./src/*"] }], aliasBase: base });
+  assert.equal(aliasesFromConfig("tsconfig.json", "{}", base), null);
 });
 
 test("resolves emitted .js specifiers back to their TypeScript source", () => {

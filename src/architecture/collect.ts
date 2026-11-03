@@ -1,9 +1,22 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
-import { checkArchitecture, codeArchitectureModel, diagramArchitectureModel, diffArchitectureModel, isArchitectureFile, unusedEdges, type ArchitectureModel } from "./model.js";
+import { aliasesFromConfig, checkArchitecture, codeArchitectureModel, diagramArchitectureModel, diffArchitectureModel, isArchitectureFile, unusedEdges, type ArchitectureAlias, type ArchitectureModel } from "./model.js";
 import { configurationPath, parseConfiguration } from "../config.js";
 
 const exec = promisify(execFile);
+
+/** tsconfig `compilerOptions.paths`, read from the same ref as the sources. */
+async function tsconfigAliases(blob: (ref: string, file: string) => Promise<string | null>, ref: string, repository: string, root: string): Promise<{ aliases: ArchitectureAlias[]; aliasBase: string } | null> {
+  const candidates = [...new Set([path.posix.normalize(path.posix.join(path.posix.dirname(root), "tsconfig.json")), "tsconfig.json"])];
+  for (const candidate of candidates) {
+    const text = await blob(ref, candidate);
+    if (!text) continue;
+    const aliases = aliasesFromConfig(candidate, text, path.join(repository, path.posix.dirname(candidate)));
+    if (aliases) return aliases;
+  }
+  return null;
+}
 
 export type ArchitectureReview = {
   base: string | null; target: string; basePresent: boolean | null; targetPresent: boolean;
@@ -41,6 +54,7 @@ export async function collectArchitecture(repository: string, base: string | nul
     blob(target, newConfiguration.diagram),
   ]);
   const files = await sourceFiles(target, newConfiguration.root);
+  const aliases = await tsconfigAliases(blob, target, repository, newConfiguration.root);
   const before = oldXml ? diagramArchitectureModel(oldXml) : null;
   const after = newXml ? diagramArchitectureModel(newXml) : null;
 
@@ -52,7 +66,7 @@ export async function collectArchitecture(repository: string, base: string | nul
       unused: [],
     };
   else {
-    const code = codeArchitectureModel({ files });
+    const code = codeArchitectureModel({ files, root: path.join(repository, newConfiguration.root), ...(aliases ? { aliases: aliases.aliases, aliasBase: aliases.aliasBase } : {}) });
     const diagnostics = checkArchitecture(code, after, { strict: newConfiguration.strict });
     guardrail = { status: diagnostics.length ? "failed" : "passed", diagnostics, unused: unusedEdges(code, after) };
   }

@@ -6,7 +6,8 @@ import { XMLParser, XMLValidator } from "fast-xml-parser";
 export type ArchitectureSlice = { name: string; label: string; x: number; y: number; width: number; height: number };
 export type ArchitectureEdge = { key: string; from: string; to: string };
 export type ArchitectureModel = { slices: ArchitectureSlice[]; edges: ArchitectureEdge[]; errors: string[] };
-export type ArchitectureSource = { files: Map<string, string> };
+export type ArchitectureAlias = { pattern: string; targets: string[] };
+export type ArchitectureSource = { files: Map<string, string>; root?: string; aliases?: ArchitectureAlias[]; aliasBase?: string };
 
 const posix = (value: string) => value.replaceAll("\\", "/");
 const pair = (from: string, to: string) => `${from}->${to}`;
@@ -31,7 +32,7 @@ export function isArchitectureFile(file: string): boolean {
 }
 
 /** Read a working-tree folder as the in-memory source map the model consumes. */
-export function readArchitectureSource(directory: string): ArchitectureSource {
+export function readArchitectureSource(directory: string, aliases?: { aliases: ArchitectureAlias[]; aliasBase: string } | null): ArchitectureSource {
   const files = new Map<string, string>();
   const walk = (dir: string, prefix: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -41,11 +42,10 @@ export function readArchitectureSource(directory: string): ArchitectureSource {
     }
   };
   if (existsSync(directory)) walk(directory, "");
-  return { files };
+  return { files, root: path.resolve(directory), ...(aliases ? { aliases: aliases.aliases, aliasBase: aliases.aliasBase } : {}) };
 }
 
-function resolveRelative(fromFile: string, specifier: string, paths: Set<string>): string | null {
-  const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), specifier));
+function resolveCandidate(base: string, paths: Set<string>): string | null {
   const bases = new Set([base]);
   for (const [from, alternatives] of Object.entries(JS_REPLACEMENTS))
     if (base.endsWith(from)) for (const alternative of alternatives) bases.add(base.slice(0, -from.length) + alternative);
@@ -56,6 +56,45 @@ function resolveRelative(fromFile: string, specifier: string, paths: Set<string>
     for (const extension of RESOLUTION_EXTENSIONS) candidates.push(`${candidate}/index${extension}`);
   }
   return candidates.find(candidate => paths.has(candidate)) ?? null;
+}
+
+/** The part a `*` in a tsconfig path pattern captures, or null when it does not match. */
+function matchAlias(pattern: string, specifier: string): string | null {
+  const star = pattern.indexOf("*");
+  if (star === -1) return pattern === specifier ? "" : null;
+  const prefix = pattern.slice(0, star), suffix = pattern.slice(star + 1);
+  if (specifier.length < prefix.length + suffix.length) return null;
+  return specifier.startsWith(prefix) && specifier.endsWith(suffix) ? specifier.slice(prefix.length, specifier.length - suffix.length) : null;
+}
+
+/** Resolve a relative or tsconfig-`paths` specifier to a source-relative file. */
+function resolveSpecifier(fromFile: string, specifier: string, paths: Set<string>, source: ArchitectureSource): string | null {
+  if (specifier.startsWith(".")) return resolveCandidate(path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), specifier)), paths);
+  if (!source.aliases?.length || !source.root || !source.aliasBase) return null;
+  for (const { pattern, targets } of source.aliases) {
+    const captured = matchAlias(pattern, specifier);
+    if (captured === null) continue;
+    for (const target of targets) {
+      const relative = posix(path.relative(source.root, path.resolve(source.aliasBase, target.replace("*", captured))));
+      if (relative.startsWith("..")) continue;
+      const resolved = resolveCandidate(relative, paths);
+      if (resolved) return resolved;
+    }
+  }
+  return null;
+}
+
+/** Read TypeScript `compilerOptions.paths` (without following `extends`) from tsconfig text. */
+export function aliasesFromConfig(fileName: string, text: string, base: string): { aliases: ArchitectureAlias[]; aliasBase: string } | null {
+  const parsed = ts.parseConfigFileTextToJson(fileName, text);
+  const compilerOptions = (parsed.config as { compilerOptions?: { paths?: unknown; baseUrl?: unknown } } | undefined)?.compilerOptions;
+  const paths = compilerOptions?.paths;
+  if (!paths || typeof paths !== "object" || Array.isArray(paths)) return null;
+  const aliases = Object.entries(paths as Record<string, unknown>)
+    .map(([pattern, targets]) => ({ pattern, targets: Array.isArray(targets) ? targets.filter((target): target is string => typeof target === "string") : [] }))
+    .filter(alias => alias.targets.length);
+  if (!aliases.length) return null;
+  return { aliases, aliasBase: path.resolve(base, typeof compilerOptions.baseUrl === "string" ? compilerOptions.baseUrl : ".") };
 }
 
 /**
@@ -76,8 +115,7 @@ export function codeArchitectureModel(source: ArchitectureSource): ArchitectureM
     slices.add(from);
     const { importedFiles } = ts.preProcessFile(content, true, true);
     for (const imported of importedFiles) {
-      if (!imported.fileName.startsWith(".")) continue;
-      const resolved = resolveRelative(file, imported.fileName, paths);
+      const resolved = resolveSpecifier(file, imported.fileName, paths, source);
       if (!resolved) continue;
       const targetSegments = resolved.split("/");
       if (targetSegments.length < 2) continue;
