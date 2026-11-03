@@ -52,6 +52,8 @@
   "files": [
     "src",
     "dist/src",
+    "docs",
+    "spikes/supercov/README.md",
     "README.md",
     "REQUIREMENTS.md"
   ],
