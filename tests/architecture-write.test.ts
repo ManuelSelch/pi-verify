@@ -55,6 +55,19 @@ test("a moved staged box keeps its new position and loses the marker", (t) => {
   assert.doesNotMatch(xml.match(/id="box-domain".*/s)![0].split("</object>")[0], /placed="auto"/);
 });
 
+test("accept keeps the position but clears the marker, without moving a box", (t) => {
+  const { dir, write, read } = scratch(t);
+  source(write);
+  writeArchitectureDiagram(dir, configuration);
+  assert.match(read("docs/architecture.drawio"), /placed="auto"/);
+  const result = writeArchitectureDiagram(dir, configuration, { accept: true });
+  assert.deepEqual(result.stagedSlices, []);
+  const xml = read("docs/architecture.drawio");
+  assert.doesNotMatch(xml, /placed="auto"/);
+  assert.doesNotMatch(xml, /dashed=1/);
+  assert.deepEqual(checkWorkingTree(dir, configuration).errors, []);
+});
+
 test("removes a slice whose folder disappears", (t) => {
   const { dir, write, read } = scratch(t);
   source(write);

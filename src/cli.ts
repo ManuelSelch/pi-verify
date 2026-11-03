@@ -17,7 +17,7 @@ const exec = promisify(execFile);
 const usage = `Usage: pi-verify collect-coverage [--base REF] [--root DIR] [--source DIR]... [--test DIR]... [--output DIR]
        pi-verify review [--base REF] [--target REF] [--output DIR] [--coverage-report FILE]
        pi-verify preview [--output DIR]
-       pi-verify architecture [--write]`;
+       pi-verify architecture [--write] [--accept]`;
 
 function options(args: string[], allowed: string[]): Record<string, string> {
   const result: Record<string, string> = {};
@@ -60,7 +60,7 @@ function configurationDirectory(repository: string): string {
   }
 }
 
-async function checkArchitectureOnWorkingTree(write: boolean) {
+async function checkArchitectureOnWorkingTree(write: boolean, accept: boolean) {
   const repository = await repositoryRoot();
   const base = configurationDirectory(repository);
   let json: string | null = null;
@@ -68,12 +68,13 @@ async function checkArchitectureOnWorkingTree(write: boolean) {
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
   const configuration: PiVerifyConfiguration = parseConfiguration(json);
   if (!configuration.architecture) throw new Error(`Architecture is not configured: no ${configurationPath} found from ${process.cwd()} up to ${repository}.`);
-  if (write) {
-    const result = writeArchitectureDiagram(base, configuration.architecture);
+  if (write || accept) {
+    const result = writeArchitectureDiagram(base, configuration.architecture, { accept });
     console.log(result.changed
       ? `Updated ${configuration.architecture.diagram}: +${result.addedSlices.length}/-${result.removedSlices.length} slices, +${result.addedEdges.length}/-${result.removedEdges.length} arrows.`
       : `${configuration.architecture.diagram} is already current.`);
-    if (result.stagedSlices.length) console.log(`Awaiting human placement: ${result.stagedSlices.join(", ")}`);
+    if (accept) console.log("Accepted the current placement.");
+    else if (result.stagedSlices.length) console.log(`Awaiting human placement: ${result.stagedSlices.join(", ")}`);
   }
   const { errors, unused } = checkWorkingTree(base, configuration.architecture);
   if (unused.length) console.log(`Allowed but unused: ${unused.join(", ")}`);
@@ -157,9 +158,10 @@ async function main() {
     return;
   }
   if (command === "architecture") {
-    const unknown = args.filter(arg => arg !== "--write");
+    const unknown = args.filter(arg => arg !== "--write" && arg !== "--accept");
     if (unknown.length) throw new Error(`Invalid option: ${unknown[0]}\n${usage}`);
-    await checkArchitectureOnWorkingTree(args.includes("--write"));
+    const accept = args.includes("--accept");
+    await checkArchitectureOnWorkingTree(args.includes("--write") || accept, accept);
     return;
   }
   if (command !== "review") throw new Error(`Unknown command: ${command}\n${usage}`);

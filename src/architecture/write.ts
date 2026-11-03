@@ -69,7 +69,8 @@ function reduceEdges(edges: ArchitectureEdge[]): ArchitectureEdge[] {
  * size and style a human gave them, new slices wait in a staging lane marked
  * `placed="auto"` until someone moves them, and removed slices and arrows are dropped.
  */
-export function writeArchitectureDiagram(base: string, configuration: ArchitectureConfiguration): DiagramWrite {
+export function writeArchitectureDiagram(base: string, configuration: ArchitectureConfiguration, options: { accept?: boolean } = {}): DiagramWrite {
+  const accept = options.accept ?? false;
   const code = codeArchitectureModel(readArchitectureSource(path.join(base, configuration.root), workingTreeAliases(base)), { slices: configuration.slices });
   const wantedEdges = (configuration.transitive ? reduceEdges(code.edges) : code.edges).slice().sort((a, b) => a.key.localeCompare(b.key));
   const slices = code.slices.map(slice => slice.name).sort();
@@ -96,12 +97,17 @@ export function writeArchitectureDiagram(base: string, configuration: Architectu
     `    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" page="1" pageWidth="1200" pageHeight="700"><root>`,
     `      <mxCell id="0"/><mxCell id="1" parent="0"/>`,
   ];
+  // Accepting keeps the position but drops the "machine placed this" marker and style.
+  const accepted = (box: Box): Box => ({
+    ...box, placed: undefined, autoAt: undefined,
+    style: box.style === STAGED_STYLE ? BOX_STYLE : box.style,
+  });
   const stagedSlices: string[] = [];
   slices.forEach((name, index) => {
     const kept = boxes.get(name);
     // A staged box that a human moved keeps its new position and loses the marker.
-    const staged = kept && kept.placed === "auto" && kept.autoAt === `${kept.x},${kept.y}`;
-    const box = kept ? (staged ? kept : { ...kept, placed: undefined, autoAt: undefined }) : stagedAt(index);
+    const staged = !accept && kept && kept.placed === "auto" && kept.autoAt === `${kept.x},${kept.y}`;
+    const box = kept ? (staged ? kept : accepted({ ...kept, placed: undefined, autoAt: undefined })) : accept ? accepted(stagedAt(index)) : stagedAt(index);
     if (box.placed === "auto") stagedSlices.push(name);
     const marker = box.placed === "auto" && box.autoAt ? ` placed="auto" autoAt="${escape(box.autoAt)}"` : "";
     lines.push(`      <object id="box-${slug(name)}" label="${escape(name)}" concept="${escape(name)}"${marker}><mxCell style="${box.style}" vertex="1" parent="1"><mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/></mxCell></object>`);
