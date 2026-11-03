@@ -18,6 +18,28 @@ async function tsconfigAliases(blob: (ref: string, file: string) => Promise<stri
   return null;
 }
 
+/**
+ * Where `.pi/pi-verify.json` lives in the target tree: the repository root, or the package
+ * directory of the nearest one to the working directory.
+ */
+async function locateConfiguration(git: (...args: string[]) => Promise<string>, ref: string, repository: string): Promise<{ configPath: string; prefix: string } | null> {
+  const names = (await git("ls-tree", "-r", "-z", "--name-only", ref)).split("\0").filter(Boolean);
+  const located = names
+    .filter(name => name === configurationPath || name.endsWith(`/${configurationPath}`))
+    .map(name => ({ configPath: name, prefix: name === configurationPath ? "" : path.posix.dirname(path.posix.dirname(name)) }));
+  if (!located.length) return null;
+  const root = located.find(entry => entry.prefix === "." || entry.prefix === "");
+  if (root) return { configPath: root.configPath, prefix: "" };
+  const relative = path.relative(repository, process.cwd()).split(path.sep).join("/");
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+    const match = located
+      .filter(entry => relative === entry.prefix || relative.startsWith(`${entry.prefix}/`))
+      .sort((a, b) => b.prefix.length - a.prefix.length)[0];
+    if (match) return match;
+  }
+  return located.length === 1 ? located[0] : null;
+}
+
 export type ArchitectureReview = {
   base: string | null; target: string; basePresent: boolean | null; targetPresent: boolean;
   before: ArchitectureModel | null; after: ArchitectureModel | null; delta: ReturnType<typeof diffArchitectureModel> | null;
@@ -43,18 +65,23 @@ export async function collectArchitecture(repository: string, base: string | nul
     return new Map(contents);
   };
 
+  const location = await locateConfiguration(git, target, repository);
+  if (!location) return null;
+  const withPrefix = (file: string) => location.prefix ? `${location.prefix}/${file}` : file;
+
   const [oldConfiguration, newConfiguration] = await Promise.all([
-    base ? blob(base, configurationPath).then(json => parseConfiguration(json).architecture) : null,
-    blob(target, configurationPath).then(json => parseConfiguration(json).architecture),
+    base ? blob(base, location.configPath).then(json => parseConfiguration(json).architecture) : null,
+    blob(target, location.configPath).then(json => parseConfiguration(json).architecture),
   ]);
   if (!newConfiguration) return null;
 
   const [oldXml, newXml] = await Promise.all([
-    base && oldConfiguration ? blob(base, oldConfiguration.diagram) : null,
-    blob(target, newConfiguration.diagram),
+    base && oldConfiguration ? blob(base, withPrefix(oldConfiguration.diagram)) : null,
+    blob(target, withPrefix(newConfiguration.diagram)),
   ]);
-  const files = await sourceFiles(target, newConfiguration.root);
-  const aliases = await tsconfigAliases(blob, target, repository, newConfiguration.root);
+  const root = withPrefix(newConfiguration.root);
+  const files = await sourceFiles(target, root);
+  const aliases = await tsconfigAliases(blob, target, repository, root);
   const before = oldXml ? diagramArchitectureModel(oldXml) : null;
   const after = newXml ? diagramArchitectureModel(newXml) : null;
 
@@ -66,7 +93,7 @@ export async function collectArchitecture(repository: string, base: string | nul
       unused: [],
     };
   else {
-    const code = codeArchitectureModel({ files, root: path.join(repository, newConfiguration.root), ...(aliases ? { aliases: aliases.aliases, aliasBase: aliases.aliasBase } : {}) }, { slices: newConfiguration.slices });
+    const code = codeArchitectureModel({ files, root: path.join(repository, root), ...(aliases ? { aliases: aliases.aliases, aliasBase: aliases.aliasBase } : {}) }, { slices: newConfiguration.slices });
     const diagnostics = checkArchitecture(code, after, { strict: newConfiguration.strict, transitive: newConfiguration.transitive });
     guardrail = { status: diagnostics.length ? "failed" : "passed", diagnostics, unused: unusedEdges(code, after) };
   }

@@ -76,6 +76,20 @@ test("reports an undeclared dependency without failing collection", async (t) =>
   assert.match(review?.guardrail.diagnostics.join(" ") ?? "", /undeclared association domain->infra/);
 });
 
+test("finds a package-local configuration inside a larger repository", async (t) => {
+  const { dir, git, write } = repository(t);
+  const base = git("rev-parse", "HEAD");
+  write("frontend/.pi/pi-verify.json", JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src" } }));
+  write("frontend/docs/architecture.drawio", drawing(["domain", "infra"], ["domain->infra"]));
+  write("frontend/src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
+  write("frontend/src/infra/db.ts", `export function table(name: string) { return name; }`);
+  git("add", "."); git("commit", "-qm", "architecture");
+  const target = git("rev-parse", "HEAD");
+  const review = await collectArchitecture(dir, base, target);
+  assert.equal(review?.guardrail.status, "passed");
+  assert.equal(review?.targetPresent, true);
+});
+
 test("a project without architecture configuration yields no architecture review", async (t) => {
   const { dir, git, write } = repository(t);
   const base = git("rev-parse", "HEAD");
