@@ -89,13 +89,15 @@ A single committed `.pi/pi-verify.json` at the Git repository root configures pi
     "diagram": "docs/architecture.drawio",
     "root": "src",
     "strict": false,
-    "slices": ["features/*", "*"]
+    "slices": ["features/*", "*"],
+    "transitive": false
   }
 }
 ```
 
 - `architecture` is optional. `diagram` and `root` are required when it is present; `strict` defaults to `false`. An absent or `null` `architecture` disables architecture checking.
 - `slices` is an optional, ordered list of folder patterns where `*` matches one path segment; the first match wins. The default `["*"]` makes every immediate subfolder of `root` a slice. `["features/*", "*"]` groups `features/briefing/...` as the slice `features/briefing` while every other top-level folder stays a slice. A file no pattern matches belongs to no slice.
+- `transitive` (default `false`) also accepts a code dependency when the diagram reaches it through other slices, so a redundant direct arrow such as `A→C` can be left out when `A→B→C` is drawn. This weakens the check from "exact allowed direct dependencies" to "allowed reachability".
 - Paths are repository-relative, using `/`; absolute paths, traversal and unknown fields are rejected. Each revision uses its own committed configuration.
 
 The file is read at the compared revisions, not from the working tree.
@@ -118,7 +120,7 @@ For a project other than pi-verify itself:
 
 The guardrail reads TypeScript sources and resolves relative imports, including `.js` specifiers that point at `.ts` sources, plus tsconfig `compilerOptions.paths` aliases such as `@/*` (read from `tsconfig.json` next to the package; `extends` is not followed). Tests, declarations, `node_modules` and `dist` are skipped. Folders must match the diagram's boxes both ways, and every cross-folder import must be an arrow.
 
-By default arrows are an allow-list: every code dependency must be an arrow, while an allowed-but-unused arrow is reported as "Allowed but unused" instead of failing. `"strict": true` fails unused arrows too. A file directly under the root belongs to no slice, and unresolved specifiers (assets, external files) are ignored rather than reported. Visible labels, box positions and styling belong to the human; only identities and arrow direction are checked, so moving or resizing a box is not a change.
+By default arrows are an allow-list of direct dependencies: every code dependency must be an arrow, while an allowed-but-unused arrow is reported as "Allowed but unused" instead of failing. `"strict": true` fails unused arrows too, and `"transitive": true` additionally allows a dependency the diagram reaches through a path, which is how you keep the picture small by drawing only the essential arrows. A file directly under the root belongs to no slice, and unresolved specifiers (assets, external files) are ignored rather than reported. Visible labels, box positions and styling belong to the human; only identities and arrow direction are checked, so moving or resizing a box is not a change.
 
 Each revision uses its own committed configuration, and the working tree is excluded. When `/verify` or `review` runs, the target diagram is bundled as `architecture.drawio`, and the report renders the panel with Changes / Before / After views. A missing historical diagram is labelled absent; unavailable bases and invalid data are not treated as successful comparisons.
 

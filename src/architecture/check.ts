@@ -19,5 +19,5 @@ export function checkWorkingTree(base: string, configuration: ArchitectureConfig
   const diagramPath = path.join(base, configuration.diagram);
   if (!existsSync(diagramPath)) throw new Error(`Architecture diagram not found: ${configuration.diagram}`);
   const diagram = diagramArchitectureModel(readFileSync(diagramPath, "utf8"));
-  return { errors: checkArchitecture(code, diagram, { strict: configuration.strict }), unused: unusedEdges(code, diagram) };
+  return { errors: checkArchitecture(code, diagram, { strict: configuration.strict, transitive: configuration.transitive }), unused: unusedEdges(code, diagram) };
 }

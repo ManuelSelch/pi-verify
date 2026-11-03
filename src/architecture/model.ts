@@ -202,11 +202,33 @@ export function unusedEdges(code: ArchitectureModel, diagram: ArchitectureModel)
   return diagram.edges.map(edge => edge.key).filter(key => !used.has(key)).sort();
 }
 
+/** Every slice reachable from each slice, following diagram arrows. */
+function reachableSlices(diagram: ArchitectureModel): Map<string, Set<string>> {
+  const adjacency = new Map<string, string[]>();
+  for (const slice of diagram.slices) adjacency.set(slice.name, []);
+  for (const edge of diagram.edges) adjacency.get(edge.from)?.push(edge.to);
+  const closure = new Map<string, Set<string>>();
+  for (const slice of diagram.slices) {
+    const seen = new Set<string>();
+    const stack = [...(adjacency.get(slice.name) ?? [])];
+    while (stack.length) {
+      const next = stack.pop()!;
+      if (seen.has(next)) continue;
+      seen.add(next);
+      stack.push(...(adjacency.get(next) ?? []));
+    }
+    closure.set(slice.name, seen);
+  }
+  return closure;
+}
+
 /**
  * Slice boxes must match the code's folders both ways. Arrows are an allow-list: every
  * code dependency must be an arrow, while an unused arrow is tolerated unless `strict`.
+ * With `transitive`, a dependency is also allowed when the diagram has a path to it, so
+ * redundant direct arrows can be left out of the picture.
  */
-export function checkArchitecture(code: ArchitectureModel, diagram: ArchitectureModel, options: { strict?: boolean } = {}): string[] {
+export function checkArchitecture(code: ArchitectureModel, diagram: ArchitectureModel, options: { strict?: boolean; transitive?: boolean } = {}): string[] {
   const errors = [...code.errors, ...diagram.errors];
   const codeSlices = new Set(code.slices.map(slice => slice.name));
   const diagramSlices = new Set(diagram.slices.map(slice => slice.name));
@@ -215,7 +237,11 @@ export function checkArchitecture(code: ArchitectureModel, diagram: Architecture
   const diagramEdges = new Set(diagram.edges.map(edge => edge.key));
   const codeEdges = new Set(code.edges.map(edge => edge.key));
   if (options.strict) for (const edge of diagramEdges) if (!codeEdges.has(edge)) errors.push(`unused association ${edge}`);
-  for (const edge of codeEdges) if (!diagramEdges.has(edge)) errors.push(`undeclared association ${edge}`);
+  const closure = options.transitive ? reachableSlices(diagram) : null;
+  for (const edge of code.edges) {
+    const declared = closure ? closure.get(edge.from)?.has(edge.to) === true : diagramEdges.has(edge.key);
+    if (!declared) errors.push(`undeclared association ${edge.key}`);
+  }
   return errors;
 }
 

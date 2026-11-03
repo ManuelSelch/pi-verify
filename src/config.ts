@@ -1,6 +1,6 @@
 export const configurationPath = ".pi/pi-verify.json";
 
-export type ArchitectureConfiguration = { diagram: string; root: string; strict: boolean; slices: string[] };
+export type ArchitectureConfiguration = { diagram: string; root: string; strict: boolean; slices: string[]; transitive: boolean };
 export type PiVerifyConfiguration = { architecture: ArchitectureConfiguration | null };
 
 function relativePath(name: string, value: unknown): string {
@@ -29,10 +29,12 @@ function slicePatterns(value: unknown): string[] {
 }
 
 function architectureConfiguration(value: unknown): ArchitectureConfiguration {
-  const object = entry("architecture", value, ["diagram", "root", "strict", "slices"]);
+  const object = entry("architecture", value, ["diagram", "root", "strict", "slices", "transitive"]);
   const strict = object.strict ?? false;
   if (typeof strict !== "boolean") throw new Error("pi-verify architecture strict must be a boolean.");
-  return { diagram: relativePath("architecture diagram", object.diagram), root: relativePath("architecture root", object.root), strict, slices: slicePatterns(object.slices) };
+  const transitive = object.transitive ?? false;
+  if (typeof transitive !== "boolean") throw new Error("pi-verify architecture transitive must be a boolean.");
+  return { diagram: relativePath("architecture diagram", object.diagram), root: relativePath("architecture root", object.root), strict, slices: slicePatterns(object.slices), transitive };
 }
 
 /**

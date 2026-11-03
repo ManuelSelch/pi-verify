@@ -19,7 +19,7 @@ function scratch(t: TestContext) {
 
 const drawing = (slices: string[], edges: string[]) => `<mxfile><diagram><mxGraphModel><root>${slices.map(slice => `<object id="box-${slice}" concept="${slice}" label="${slice}"><mxCell vertex="1"><mxGeometry x="0" y="0" width="140" height="50"/></mxCell></object>`).join("")}${edges.map(edge => { const [from, to] = edge.split("->"); return `<object id="edge-${from}-${to}" assoc="${from}->${to}"><mxCell edge="1" source="box-${from}" target="box-${to}"/></object>`; }).join("")}</root></mxGraphModel></diagram></mxfile>`;
 
-const defaultConfiguration = { diagram: "docs/architecture.drawio", root: "src", strict: false, slices: ["*"] };
+const defaultConfiguration = { diagram: "docs/architecture.drawio", root: "src", strict: false, slices: ["*"], transitive: false };
 
 test("readArchitectureSource reads only TypeScript sources and skips tests", (t) => {
   const { dir, write } = scratch(t);

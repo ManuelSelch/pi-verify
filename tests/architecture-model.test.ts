@@ -103,6 +103,18 @@ test("an allowed but unused arrow is reported, not failed, unless strict", () =>
   assert.match(checkArchitecture(code, diagram, { strict: true }).join(" "), /unused association ui->domain/);
 });
 
+test("transitive mode accepts a dependency the diagram implies through a path", () => {
+  const code = codeArchitectureModel({ files: files({
+    "a/one.ts": `import "../b/two"; import "../c/three"; export const one = 1;`,
+    "b/two.ts": `import "../c/three"; export const two = 1;`,
+    "c/three.ts": `export const three = 1;`,
+  }) });
+  const diagram = diagramArchitectureModel(drawing(["a", "b", "c"], ["a->b", "b->c"]));
+  assert.match(checkArchitecture(code, diagram).join(" "), /undeclared association a->c/);
+  assert.deepEqual(checkArchitecture(code, diagram, { transitive: true }), []);
+  assert.match(checkArchitecture(code, diagramArchitectureModel(drawing(["a", "b", "c"], ["a->b"])), { transitive: true }).join(" "), /undeclared association b->c/);
+});
+
 test("rejects undeclared lines, wrong identities and mismatched labels", () => {
   const code = codeArchitectureModel({ files: source });
   assert.match(checkArchitecture(code, diagramArchitectureModel(drawing(allowed, dependencies, { declare: false }))).join(" "), /undeclared association/);

@@ -7,9 +7,14 @@ test("an absent configuration disables the architecture check", () => {
 });
 
 test("parses the architecture section", () => {
-  assert.deepEqual(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true, slices: ["features/*", "*"] } })), {
-    architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true, slices: ["features/*", "*"] },
+  assert.deepEqual(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true, slices: ["features/*", "*"], transitive: true } })), {
+    architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true, slices: ["features/*", "*"], transitive: true },
   });
+});
+
+test("transitive defaults to false and must be a boolean", () => {
+  assert.equal(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/a.drawio", root: "src" } })).architecture?.transitive, false);
+  assert.throws(() => parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/a.drawio", root: "src", transitive: "yes" } })), /boolean/);
 });
 
 test("slice patterns default to the first folder and are validated", () => {
