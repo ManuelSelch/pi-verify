@@ -1,6 +1,6 @@
 {
   "name": "@manuelselch/pi-verify",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Composable evidence collection and verification reports for Pi workflows",
   "type": "module",
   "license": "UNLICENSED",
