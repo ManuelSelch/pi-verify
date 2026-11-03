@@ -10,6 +10,7 @@ export type ReviewSection = {
 export type ReviewReport = {
   schemaVersion: 1;
   conceptualModel?: import("../../conceptual-model/collect.js").ConceptualReview;
+  sliceModel?: import("../../slice-model/collect.js").SliceReview;
   coverage?: import("../infra/coverage.js").CoverageReport;
   comparison: {
     status: "available" | "unavailable";

@@ -23,6 +23,7 @@ The Pi extension provides `/verify` and evidence-collection tools. For local dev
 
 - [CLI options, report format and verification tools](docs/guide.md)
 - [Conceptual diagram comparison and TypeScript guardrail](docs/guide.md#conceptual-diagram-comparison)
+- [Slice architecture comparison](docs/guide.md#slice-architecture-comparison)
 - [Collecting per-test coverage](docs/coverage.md)
 
 ## Development

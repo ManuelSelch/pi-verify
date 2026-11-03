@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { collectGitScope, type GitScope } from "./git-scope.js";
 import { collectConceptualModel } from "./conceptual-model/collect.js";
+import { collectSliceModel } from "./slice-model/collect.js";
 import { importCoverage, type CoverageReport } from "./review-report/infra/coverage.js";
 import { writeReportBundle } from "./report.js";
 import type { ReviewReport, ReviewSection } from "./review-report/domain/model.js";
@@ -117,6 +118,7 @@ async function main() {
   const scope = await collectGitScope(process.cwd());
   const { base, target, tree } = await comparison(scope, opts["--base"], opts["--target"]);
   const model = await collectConceptualModel(scope.repository, base, target);
+  const slices = await collectSliceModel(scope.repository, base, target);
   const defaultCoverage = path.join(scope.repository, ".pi-verify", "coverage", "report.json");
   let coverage: CoverageReport | undefined;
   if (opts["--coverage-report"]) coverage = await importCoverage(scope.repository, path.resolve(opts["--coverage-report"]), base, target);
@@ -133,15 +135,17 @@ async function main() {
   }
   const section: ReviewSection = { status: "unavailable", source: "not-collected", scope: "Not collected in standalone review", revision: null, limitations: ["Not collected in this standalone review."], evidence: [] };
   const hasModel = model.basePresent || model.targetPresent;
+  const hasSlices = !!slices && (slices.targetPresent || slices.basePresent);
   const review: ReviewReport = {
     schemaVersion: 1,
     ...(hasModel ? { conceptualModel: model } : {}),
+    ...(hasSlices ? { sliceModel: slices } : {}),
     ...(coverage ? { coverage } : {}),
     comparison: { status: "available", base, target, targetTree: tree, method: opts["--base"] ? "explicit" : "branch-creation-reflog", includesUncommitted: false, excludedWorkingTree: { staged: scope.staged, unstaged: scope.unstaged, untracked: scope.untracked }, limitations: ["Working tree changes are excluded."] },
     sections: {
       overview: section, changes: section, complexity: section, evidence: section,
       testsCoverage: coverage ? { ...section, status: "available", source: "coverage-collector", revision: target, scope: "Imported per-test coverage", limitations: coverage.limitations } : { ...section, scope: "Per-test coverage", limitations: ["No coverage report supplied."] },
-      architecture: hasModel ? { ...section, status: "available", source: "git", revision: target, scope: "Committed conceptual diagram comparison", limitations: model.guardrail.diagnostics } : { ...section, scope: "Conceptual model", limitations: ["No supported conceptual diagram found."] },
+      architecture: hasModel || hasSlices ? { ...section, status: "available", source: "git", revision: target, scope: "Committed architecture diagram comparison", limitations: [...(hasModel ? model.guardrail.diagnostics : []), ...(hasSlices ? slices.guardrail.diagnostics : [])] } : { ...section, scope: "Architecture", limitations: ["No supported architecture diagram found."] },
     },
   };
   const output = path.resolve(opts["--output"] ?? path.join(scope.repository, ".pi-verify"));

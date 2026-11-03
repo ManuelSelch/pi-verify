@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { ArtifactEntry, VerificationReport } from "../../report.js";
 import { conceptualCss, conceptualHtml } from "../../conceptual-model/html.js";
+import { sliceCss, sliceHtml } from "../../slice-model/html.js";
 import { coverageCss, coverageHtml } from "./coverage-html.js";
 
 const escape = (value: unknown): string => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
@@ -21,9 +22,11 @@ export function reportHtml(report: VerificationReport, directory: string): strin
   const branch = typeof report.source?.branch === "string" ? report.source.branch : "Unknown branch";
   const base = review?.comparison.base ?? "Unavailable", target = review?.comparison.target ?? "Unavailable";
   const coverage = review?.coverage ? coverageHtml(review.coverage) : unavailable("Tests & coverage", review?.sections.testsCoverage.limitations);
-  const architecture = review?.conceptualModel ? conceptualHtml(review.conceptualModel) : unavailable("Architecture", review?.sections.architecture.limitations);
+  const architecture = review?.conceptualModel || review?.sliceModel
+    ? `${review.conceptualModel ? conceptualHtml(review.conceptualModel) : ""}${review.sliceModel ? sliceHtml(review.sliceModel) : ""}`
+    : unavailable("Architecture", review?.sections.architecture.limitations);
   const details = `<details class="other-details"><summary>Verification details</summary><h2>${escape(report.verdict)}</h2><p>${escape(report.goal)}</p><p>Checks and changes are agent-reported.</p><ul>${(report.checks ?? []).map(c => `<li>${escape(c.command)} · ${escape(c.outcome)}</li>`).join("")}</ul><h3>Changed files</h3>${(report.changes ?? []).map(c => `<p>${escape(c.file)}: ${escape(c.summary)}</p>`).join("")}<h3>Evidence</h3>${(report.artifacts ?? []).map(a => evidenceCard(a, directory)).join("")}<h3>Limitations</h3><ul>${[...(report.limitations ?? []), ...(report.skipped ?? []).map(x => `Skipped: ${x}`)].map(x => `<li>${escape(x)}</li>`).join("")}</ul></details>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Verification report</title><style>${css}${conceptualCss}${coverageCss}</style></head>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Verification report</title><style>${css}${conceptualCss}${sliceCss}${coverageCss}</style></head>
 <body><a class="skip" href="#main">Skip to report</a><div class="app"><aside class="sidebar"><div class="brand"><span class="brand-icon">✓</span><strong>verify</strong></div><p class="side-label">REVIEW</p><nav aria-label="Report sections"><a href="#tests-coverage">◉ &nbsp; Tests &amp; coverage</a><a href="#architecture">▦ &nbsp; Architecture</a></nav></aside>
 <main id="main"><div class="breadcrumb">pi-verify / verification report</div><header><div class="eyebrow">● &nbsp; VERIFICATION REPORT</div><h1>Review</h1><div class="context"><span>${escape(branch)}</span><span>Base <b>${escape(base)}</b></span><span>Target <b>${escape(target)}</b></span></div></header>
 <section class="page" id="tests-coverage">${coverage}${details}</section><section class="page" id="architecture">${architecture}</section></main></div></body></html>\n`;

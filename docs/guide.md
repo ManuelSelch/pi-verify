@@ -127,6 +127,25 @@ The command reads committed blobs, not local edits. The regular `/verify` report
 
 The model and semantic-diff approach are adapted from [human-review](https://github.com/victorrentea/human-review) and [petclinic's conceptual model guardrail](https://github.com/victorrentea/petclinic/tree/main/petclinic-backend/src/test/java/victor/training/petclinic/guardrail), rewritten for this TypeScript project.
 
+## Slice architecture comparison
+
+A second, independent guardrail checks module-level architecture: the immediate subfolders of a configured root are the slices, and relative TypeScript imports between them are the dependencies. It is configured separately and is entirely optional; without `.pi/slice-model.json` nothing is collected.
+
+Commit an uncompressed draw.io diagram with one box per slice (`concept="domain"`, label equal to the folder name) and one directed arrow per allowed dependency (`assoc="domain->infra"`), then add `.pi/slice-model.json` at the Git repository root:
+
+```json
+{
+  "diagram": "docs/architecture.drawio",
+  "root": "src"
+}
+```
+
+`diagram` and `root` are repository-relative; absolute paths, traversal and unknown configuration fields are rejected. An optional `"strict": true` also fails arrows the code does not use. By default arrows are an allow-list: every cross-folder import must be an arrow, while an allowed-but-unused arrow is reported as "Allowed but unused" instead of failing. Each revision uses its own committed configuration, and the working tree is excluded.
+
+The guardrail reads committed TypeScript sources through Git and resolves relative imports, including `.js` specifiers that point at `.ts` sources, while skipping tests, declarations, `node_modules` and `dist`. Folders must match the diagram's boxes both ways, and every cross-folder import must be an arrow. A file directly under the root belongs to no slice, and unresolved specifiers (assets, external files) are ignored rather than reported. When `/verify` or `review` runs, the panel appears in the Architecture section alongside the conceptual model, and the target diagram is bundled as `slice-model.drawio`.
+
+This is an import-graph check, not a runtime or dynamic-dependency check. Bare package specifiers are external, slices are exactly the immediate subfolders of `root`, and each file is read with one `git show` call.
+
 ## TypeScript coverage collection
 
 The [coverage collector](coverage.md) provides explicit collection for supported `node:test` and Jest runs. `pi-verify review` imports default coverage automatically; pass its neutral JSON report to `verify_finish` or use `--coverage-report` for another location. Neither review nor `verify_finish` runs measurement automatically. For a monorepo, point `--root` to the frontend package and use paths relative to that package. Import validates the committed snapshot and Jest/Next configuration files.
