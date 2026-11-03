@@ -1,0 +1,11 @@
+<mxfile host="app.diagrams.net" modified="2026-01-01T00:00:00.000Z" agent="pi-verify" version="24.7.17">
+  <diagram id="architecture" name="pi-verify slices">
+    <mxGraphModel dx="800" dy="480" grid="1" gridSize="10" page="1" pageWidth="850" pageHeight="500"><root>
+      <mxCell id="0"/><mxCell id="1" parent="0"/>
+      <object id="box-architecture" label="architecture" concept="architecture"><mxCell vertex="1" parent="1"><mxGeometry x="80" y="70" width="150" height="60" as="geometry"/></mxCell></object>
+      <object id="box-review-report" label="review-report" concept="review-report"><mxCell vertex="1" parent="1"><mxGeometry x="420" y="70" width="150" height="60" as="geometry"/></mxCell></object>
+      <object id="box-coverage" label="coverage" concept="coverage"><mxCell vertex="1" parent="1"><mxGeometry x="250" y="250" width="150" height="60" as="geometry"/></mxCell></object>
+      <object id="edge-review-report-architecture" assoc="review-report->architecture"><mxCell style="endArrow=block;html=1;" edge="1" parent="1" source="box-review-report" target="box-architecture"><mxGeometry relative="1" as="geometry"/></mxCell></object>
+    </root></mxGraphModel>
+  </diagram>
+</mxfile>

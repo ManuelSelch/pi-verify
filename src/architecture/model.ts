@@ -2,10 +2,10 @@ import path from "node:path";
 import ts from "typescript";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
-export type SliceConcept = { name: string; label: string; x: number; y: number; width: number; height: number };
-export type SliceEdge = { key: string; from: string; to: string };
-export type SliceModel = { concepts: SliceConcept[]; edges: SliceEdge[]; errors: string[] };
-export type SliceSource = { files: Map<string, string> };
+export type ArchitectureSlice = { name: string; label: string; x: number; y: number; width: number; height: number };
+export type ArchitectureEdge = { key: string; from: string; to: string };
+export type ArchitectureModel = { slices: ArchitectureSlice[]; edges: ArchitectureEdge[]; errors: string[] };
+export type ArchitectureSource = { files: Map<string, string> };
 
 const posix = (value: string) => value.replaceAll("\\", "/");
 const pair = (from: string, to: string) => `${from}->${to}`;
@@ -24,7 +24,7 @@ const RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".m
 const JS_REPLACEMENTS: Record<string, string[]> = { ".js": [".ts", ".tsx"], ".jsx": [".tsx", ".ts"], ".mjs": [".mts"], ".cjs": [".cts"] };
 
 /** Only tracked TypeScript sources that can form a slice participate. */
-export function isSliceFile(file: string): boolean {
+export function isArchitectureFile(file: string): boolean {
   const normalized = posix(file);
   return SUPPORTED.test(normalized) && !DEFAULT_EXCLUDE.some(pattern => pattern.test(normalized));
 }
@@ -48,15 +48,15 @@ function resolveRelative(fromFile: string, specifier: string, paths: Set<string>
  * A file directly under the root belongs to no slice; unresolved specifiers (assets,
  * external files) are ignored, since architecture does not depend on them.
  */
-export function codeSliceModel(source: SliceSource): SliceModel {
+export function codeArchitectureModel(source: ArchitectureSource): ArchitectureModel {
   const files = new Map([...source.files].map(([file, content]) => [posix(file), content]));
   const paths = new Set(files.keys());
   const slices = new Set<string>();
-  const edges = new Map<string, SliceEdge>();
+  const edges = new Map<string, ArchitectureEdge>();
 
   for (const [file, content] of files) {
     const segments = file.split("/");
-    if (segments.length < 2 || !isSliceFile(file)) continue;
+    if (segments.length < 2 || !isArchitectureFile(file)) continue;
     const from = segments[0];
     slices.add(from);
     const { importedFiles } = ts.preProcessFile(content, true, true);
@@ -74,14 +74,14 @@ export function codeSliceModel(source: SliceSource): SliceModel {
   }
 
   return {
-    concepts: [...slices].sort().map(name => ({ name, label: name, x: 0, y: 0, width: 0, height: 0 })),
+    slices: [...slices].sort().map(name => ({ name, label: name, x: 0, y: 0, width: 0, height: 0 })),
     edges: [...edges.values()].sort((a, b) => a.key.localeCompare(b.key)),
     errors: [],
   };
 }
 
 /** The diagram as slices: boxes carry concept="<folder>", arrows assoc="<from>-><to>". */
-export function diagramSliceModel(xml: string): SliceModel {
+export function diagramArchitectureModel(xml: string): ArchitectureModel {
   if (XMLValidator.validate(xml) !== true || /<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("Invalid or unsupported draw.io XML");
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "", parseAttributeValue: false });
   const parsed = parser.parse(xml);
@@ -92,7 +92,7 @@ export function diagramSliceModel(xml: string): SliceModel {
 
   const cells = [...list(root.mxCell), ...list(root.object).map((object: any) => ({ ...object.mxCell, ...object }))];
   const errors: string[] = [];
-  const concepts: SliceConcept[] = [];
+  const slices: ArchitectureSlice[] = [];
   const idToName = new Map<string, string>();
   const names = new Set<string>();
   for (const cell of cells.filter((c: any) => c.concept)) {
@@ -103,10 +103,10 @@ export function diagramSliceModel(xml: string): SliceModel {
     const label = String(cell.label ?? cell.value ?? name);
     if (label !== name) errors.push(`slice ${name} label does not match its folder name`);
     const geometry = cell.mxGeometry ?? {};
-    concepts.push({ name, label, x: Number(geometry.x ?? 0), y: Number(geometry.y ?? 0), width: Number(geometry.width ?? 140), height: Number(geometry.height ?? 50) });
+    slices.push({ name, label, x: Number(geometry.x ?? 0), y: Number(geometry.y ?? 0), width: Number(geometry.width ?? 140), height: Number(geometry.height ?? 50) });
   }
 
-  const edges: SliceEdge[] = [];
+  const edges: ArchitectureEdge[] = [];
   const seen = new Set<string>();
   for (const edge of cells.filter((c: any) => String(c.edge) === "1")) {
     const from = idToName.get(String(edge.source));
@@ -118,17 +118,17 @@ export function diagramSliceModel(xml: string): SliceModel {
     seen.add(pair(from, to));
     edges.push({ key: pair(from, to), from, to });
   }
-  if (!concepts.length) errors.push("diagram has no slices");
+  if (!slices.length) errors.push("diagram has no slices");
 
   return {
-    concepts: concepts.sort((a, b) => a.name.localeCompare(b.name)),
+    slices: slices.sort((a, b) => a.name.localeCompare(b.name)),
     edges: edges.sort((a, b) => a.key.localeCompare(b.key)),
     errors,
   };
 }
 
 /** Arrows the diagram allows but the code does not (yet) use. */
-export function unusedAssociations(code: SliceModel, diagram: SliceModel): string[] {
+export function unusedEdges(code: ArchitectureModel, diagram: ArchitectureModel): string[] {
   const used = new Set(code.edges.map(edge => edge.key));
   return diagram.edges.map(edge => edge.key).filter(key => !used.has(key)).sort();
 }
@@ -137,10 +137,10 @@ export function unusedAssociations(code: SliceModel, diagram: SliceModel): strin
  * Slice boxes must match the code's folders both ways. Arrows are an allow-list: every
  * code dependency must be an arrow, while an unused arrow is tolerated unless `strict`.
  */
-export function checkSlices(code: SliceModel, diagram: SliceModel, options: { strict?: boolean } = {}): string[] {
+export function checkArchitecture(code: ArchitectureModel, diagram: ArchitectureModel, options: { strict?: boolean } = {}): string[] {
   const errors = [...code.errors, ...diagram.errors];
-  const codeSlices = new Set(code.concepts.map(concept => concept.name));
-  const diagramSlices = new Set(diagram.concepts.map(concept => concept.name));
+  const codeSlices = new Set(code.slices.map(slice => slice.name));
+  const diagramSlices = new Set(diagram.slices.map(slice => slice.name));
   for (const name of codeSlices) if (!diagramSlices.has(name)) errors.push(`missing slice ${name}`);
   for (const name of diagramSlices) if (!codeSlices.has(name)) errors.push(`extra slice ${name}`);
   const diagramEdges = new Set(diagram.edges.map(edge => edge.key));
@@ -150,9 +150,9 @@ export function checkSlices(code: SliceModel, diagram: SliceModel, options: { st
   return errors;
 }
 
-export function diffSliceModel(before: SliceModel | null, after: SliceModel | null): { added: string[]; removed: string[]; changed: string[] } {
-  const entries = (model: SliceModel | null) => new Map<string, string>([
-    ...(model?.concepts ?? []).map(concept => [`slice ${concept.name}`, concept.label] as const),
+export function diffArchitectureModel(before: ArchitectureModel | null, after: ArchitectureModel | null): { added: string[]; removed: string[]; changed: string[] } {
+  const entries = (model: ArchitectureModel | null) => new Map<string, string>([
+    ...(model?.slices ?? []).map(slice => [`slice ${slice.name}`, slice.label] as const),
     ...(model?.edges ?? []).map(edge => [`association ${edge.key}`, edge.key] as const),
   ]);
   const old = entries(before), current = entries(after);

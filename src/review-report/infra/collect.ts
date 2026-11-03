@@ -2,8 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitScope } from "../../git-scope.js";
 import type { ReviewReport, ReviewSection } from "../domain/model.js";
-import { collectConceptualModel, type ConceptualReview } from "../../conceptual-model/collect.js";
-import { collectSliceModel, type SliceReview } from "../../slice-model/collect.js";
+import { collectArchitecture, type ArchitectureReview } from "../../architecture/collect.js";
 import { importCoverage, type CoverageReport } from "./coverage.js";
 
 const exec = promisify(execFile);
@@ -29,24 +28,14 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
     source, status, scope: sectionScope, revision: source === "git" || source === "coverage-collector" ? revision : null, limitations: notes, evidence: refs,
   });
   const unavailable = (name: string) => section("not-collected", "unavailable", name, ["Analysis has not been collected."]);
-  let conceptualModel: ConceptualReview | undefined;
-  let modelFailure: string | undefined;
+  let architecture: ArchitectureReview | undefined;
+  let architectureFailure: string | undefined;
   if (scope) {
     try {
-      const collected = await collectConceptualModel(scope.repository, base, scope.head);
-      if (collected && (collected.targetPresent || collected.basePresent)) conceptualModel = collected;
+      const collected = await collectArchitecture(scope.repository, base, scope.head);
+      if (collected && (collected.targetPresent || collected.basePresent)) architecture = collected;
     } catch (error) {
-      modelFailure = `Conceptual model could not be collected: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-  let sliceModel: SliceReview | undefined;
-  let sliceFailure: string | undefined;
-  if (scope) {
-    try {
-      const collected = await collectSliceModel(scope.repository, base, scope.head);
-      if (collected && (collected.targetPresent || collected.basePresent)) sliceModel = collected;
-    } catch (error) {
-      sliceFailure = `Slice architecture could not be collected: ${error instanceof Error ? error.message : String(error)}`;
+      architectureFailure = `Architecture could not be collected: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
   let coverage: CoverageReport | undefined;
@@ -59,8 +48,7 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
     }
   }
   return {
-    ...(conceptualModel ? { conceptualModel } : {}),
-    ...(sliceModel ? { sliceModel } : {}),
+    ...(architecture ? { architecture } : {}),
     ...(coverage ? { coverage } : {}),
     schemaVersion: 1,
     comparison: {
@@ -74,12 +62,9 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
       changes: section("not-collected", "unavailable", "Committed feature branch comparison", [...limitations, "Changed files have not been independently collected."]),
       testsCoverage: coverage ? section("coverage-collector", "available", "Imported per-test changed-line coverage", coverage.limitations) : section("not-collected", "unavailable", "Per-test changed-line coverage", [coverageFailure ?? "Coverage has not been collected or supplied."]),
       complexity: unavailable("Named module complexity"),
-      architecture: conceptualModel || sliceModel
-        ? section("git", "available", "Committed architecture diagram comparison", [
-            ...(conceptualModel ? ["Conceptual diagram semantics only; not runtime interactions.", ...conceptualModel.guardrail.diagnostics] : []),
-            ...(sliceModel ? ["Slice diagram checks import direction between top-level folders; not runtime interactions.", ...sliceModel.guardrail.diagnostics] : []),
-          ])
-        : section("not-collected", "unavailable", "Architecture", [modelFailure ?? sliceFailure ?? "No supported committed architecture diagram was collected."]),
+      architecture: architecture
+        ? section("git", "available", "Committed architecture diagram comparison", ["Slice diagram checks import direction between top-level folders; not runtime interactions.", ...architecture.guardrail.diagnostics])
+        : section("not-collected", "unavailable", "Architecture", [architectureFailure ?? "No committed architecture diagram was collected."]),
       evidence: section("agent-authored", "available", "Deliberately attached artifacts", [], evidence),
     },
   };

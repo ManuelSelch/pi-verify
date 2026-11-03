@@ -24,10 +24,10 @@ test("review creates a report for a feature branch and records excluded changes"
     assert.deepEqual(report.review.comparison.excludedWorkingTree.unstaged, ["file.txt"]);
     assert.equal(report.review.sections.architecture.status, "unavailable");
     assert.deepEqual(report.review.sections.testsCoverage.limitations, ["No coverage report supplied."]);
-    assert.deepEqual(report.review.sections.architecture.limitations, ["No supported architecture diagram found."]);
+    assert.deepEqual(report.review.sections.architecture.limitations, ["No committed architecture diagram found."]);
     const html = readFileSync(path.join(dir, ".pi-verify", "pi-verify-report.html"), "utf8");
     assert.match(html, /No coverage report supplied\./);
-    assert.match(html, /No supported architecture diagram found\./);
+    assert.match(html, /No committed architecture diagram found\./);
     assert.match(result.stdout, /\.pi-verify\/.*html/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

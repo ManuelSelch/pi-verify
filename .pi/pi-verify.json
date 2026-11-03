@@ -1,6 +1,6 @@
 {
-  "conceptualModel": {
-    "diagram": "docs/conceptual-model.drawio",
-    "source": "src/review-report/domain/model.ts"
+  "architecture": {
+    "diagram": "docs/architecture.drawio",
+    "root": "src"
   }
 }

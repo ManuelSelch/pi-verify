@@ -9,8 +9,7 @@ export type ReviewSection = {
 
 export type ReviewReport = {
   schemaVersion: 1;
-  conceptualModel?: import("../../conceptual-model/collect.js").ConceptualReview;
-  sliceModel?: import("../../slice-model/collect.js").SliceReview;
+  architecture?: import("../../architecture/collect.js").ArchitectureReview;
   coverage?: import("../infra/coverage.js").CoverageReport;
   comparison: {
     status: "available" | "unavailable";

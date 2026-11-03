@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { collectSliceModel } from "../src/slice-model/collect.js";
+import { collectArchitecture } from "../src/architecture/collect.js";
 import { collectReviewReport } from "../src/review-report/infra/collect.js";
 import { writeReportBundle } from "../src/report.js";
 
@@ -18,7 +18,7 @@ function drawing(slices: string[], edges: string[]): string {
 }
 
 function repository(t: TestContext): { dir: string; git: (...args: string[]) => string; write: (file: string, content: string) => void } {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "slice-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "architecture-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
   git("init", "-q"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.com");
@@ -31,10 +31,10 @@ function repository(t: TestContext): { dir: string; git: (...args: string[]) => 
   return { dir, git, write };
 }
 
-test("collects committed slice architecture and checks import direction between folders", async (t) => {
+test("collects committed architecture and checks import direction between folders", async (t) => {
   const { dir, git, write } = repository(t);
   const base = git("rev-parse", "HEAD");
-  write(".pi/pi-verify.json", JSON.stringify({ sliceModel: { diagram: "docs/architecture.drawio", root: "src" } }));
+  write(".pi/pi-verify.json", JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src" } }));
   write("docs/architecture.drawio", drawing(["domain", "infra", "report", "ui"], ["domain->infra", "report->domain", "ui->report"]));
   write("src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
   write("src/infra/db.ts", `export function table(name: string) { return name; }`);
@@ -43,7 +43,7 @@ test("collects committed slice architecture and checks import direction between 
   git("add", "."); git("commit", "-qm", "architecture");
   const target = git("rev-parse", "HEAD");
 
-  const review = await collectSliceModel(dir, base, target);
+  const review = await collectArchitecture(dir, base, target);
   assert.ok(review);
   assert.equal(review.basePresent, false);
   assert.equal(review.targetPresent, true);
@@ -52,35 +52,35 @@ test("collects committed slice architecture and checks import direction between 
   assert.deepEqual(review.delta?.added, ["association domain->infra", "association report->domain", "association ui->report", "slice domain", "slice infra", "slice report", "slice ui"]);
 
   const report = await collectReviewReport({ repository: dir, branch: "feature", head: target, baseline: base, baselineMethod: "branch-creation-reflog", fingerprint: "", clean: true, staged: [], unstaged: [], untracked: [], commits: [] }, []);
-  assert.ok(report.sliceModel);
+  assert.ok(report.architecture);
   assert.equal(report.sections.architecture.status, "available");
-  const bundle = await writeReportBundle(path.join(dir, "bundle"), { goal: "Slice architecture", verdict: "UNKNOWN", review: report });
+  const bundle = await writeReportBundle(path.join(dir, "bundle"), { goal: "Architecture", verdict: "UNKNOWN", review: report });
   const html = readFileSync(bundle.htmlPath, "utf8");
-  assert.match(html, /Slice architecture/);
-  assert.match(html, /Slice guardrail passed/);
-  assert.match(readFileSync(path.join(dir, "bundle/slice-model.drawio"), "utf8"), /concept="domain"/);
+  assert.match(html, /Architecture/);
+  assert.match(html, /Architecture guardrail passed/);
+  assert.match(readFileSync(path.join(dir, "bundle/architecture.drawio"), "utf8"), /concept="domain"/);
 });
 
 test("reports an undeclared dependency without failing collection", async (t) => {
   const { dir, git, write } = repository(t);
   const base = git("rev-parse", "HEAD");
-  write(".pi/pi-verify.json", JSON.stringify({ sliceModel: { diagram: "docs/architecture.drawio", root: "src" } }));
+  write(".pi/pi-verify.json", JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src" } }));
   write("docs/architecture.drawio", drawing(["domain", "infra"], ["report->domain"]));
   write("src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
   write("src/infra/db.ts", `export function table(name: string) { return name; }`);
   git("add", "."); git("commit", "-qm", "architecture");
   const target = git("rev-parse", "HEAD");
 
-  const review = await collectSliceModel(dir, base, target);
+  const review = await collectArchitecture(dir, base, target);
   assert.equal(review?.guardrail.status, "failed");
   assert.match(review?.guardrail.diagnostics.join(" ") ?? "", /undeclared association domain->infra/);
 });
 
-test("a project without slice configuration yields no slice review", async (t) => {
+test("a project without architecture configuration yields no architecture review", async (t) => {
   const { dir, git, write } = repository(t);
   const base = git("rev-parse", "HEAD");
   write("src/thing.ts", `export const thing = 1;`);
   git("add", "."); git("commit", "-qm", "code");
   const target = git("rev-parse", "HEAD");
-  assert.equal(await collectSliceModel(dir, base, target), null);
+  assert.equal(await collectArchitecture(dir, base, target), null);
 });
