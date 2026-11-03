@@ -4,7 +4,7 @@ Composable evidence collection and verification reports for Pi workflows, with a
 
 ## Quick start
 
-Once published, from a Git project:
+From a Git project:
 
 ```bash
 npx @manuelselch/pi-verify review
@@ -13,7 +13,7 @@ npx @manuelselch/pi-verify preview
 
 Alternatively, install `@manuelselch/pi-verify` as a development dependency and run `npx pi-verify review` and `npx pi-verify preview`. Node.js 20 or later is required.
 
-The review compares committed revisions, excluding working-tree changes. If the branch-creation base cannot be determined, provide `--base REF`. Reports are written to `.pi-verify/`; consider adding it to your project's `.gitignore`. The CLI does not run tests or collect coverage automatically.
+The review compares committed revisions, excluding working-tree changes. If the branch-creation base cannot be determined, provide `--base REF`. Reports are written to `.pi-verify/`; consider adding it to your project's `.gitignore`. Review does not run tests automatically. To collect coverage first, run `npx @manuelselch/pi-verify collect-coverage`; see the [coverage guide](docs/coverage.md) for requirements and scope.
 
 ## Pi integration
 
@@ -23,8 +23,8 @@ The Pi extension provides `/verify` and evidence-collection tools. For local dev
 
 - [CLI options, report format and verification tools](docs/guide.md)
 - [Conceptual diagram comparison and TypeScript guardrail](docs/guide.md#conceptual-diagram-comparison)
-- [Supercov per-test coverage spike](spikes/supercov/README.md)
+- [Collecting per-test coverage](docs/coverage.md)
 
 ## Development
 
-Run `npm install` and `npm test`. The package has not yet been published; `npm pack` creates a local installable tarball.
+Run `npm install` and `npm test`. `npm pack` creates a local installable tarball.

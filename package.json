@@ -61,5 +61,8 @@
     "fast-xml-parser": "^5.11.2",
     "shiki": "4.6.0",
     "typescript": "^5.9.3"
+  },
+  "optionalDependencies": {
+    "supercov": "4.22.0"
   }
 }

@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { collectGitScope } from "./git-scope.js";
+import { collectGitScope, type GitScope } from "./git-scope.js";
 import { collectConceptualModel } from "./conceptual-model/collect.js";
 import { importCoverage } from "./review-report/infra/coverage.js";
 import { writeReportBundle } from "./report.js";
 import type { ReviewReport, ReviewSection } from "./review-report/domain/model.js";
 
 const exec = promisify(execFile);
-const usage = `Usage: pi-verify review [--base REF] [--target REF] [--output DIR] [--coverage-report FILE]
+const usage = `Usage: pi-verify collect-coverage [--base REF] [--root DIR] [--source FILE]... [--test FILE]... [--output DIR]
+       pi-verify review [--base REF] [--target REF] [--output DIR] [--coverage-report FILE]
        pi-verify preview [--output DIR]`;
 
 function options(args: string[], allowed: string[]): Record<string, string> {
@@ -23,10 +24,62 @@ function options(args: string[], allowed: string[]): Record<string, string> {
   return result;
 }
 
+async function comparison(scope: GitScope, baseOption?: string, targetOption?: string) {
+  const git = async (...argv: string[]) => (await exec("git", argv, { cwd: scope.repository })).stdout.trim();
+  const target = await git("rev-parse", "--verify", `${targetOption ?? "HEAD"}^{commit}`);
+  const selected = baseOption ?? (scope.baselineMethod === "branch-creation-reflog" ? scope.baseline : null);
+  if (!selected) throw new Error("Branch creation base is unavailable; specify --base REF.");
+  const base = await git("rev-parse", "--verify", `${selected}^{commit}`);
+  if (!baseOption) {
+    try { await git("merge-base", "--is-ancestor", base, target); }
+    catch { throw new Error("Branch creation base is not an ancestor of target; specify --base REF."); }
+  }
+  return { base, target, tree: await git("rev-parse", `${target}^{tree}`) };
+}
+
+async function collectCoverage(args: string[]) {
+  const allowed = ["--base", "--root", "--source", "--test", "--output"];
+  const values = new Map<string, string[]>();
+  for (let i = 0; i < args.length; i += 2) {
+    const key = args[i], value = args[i + 1];
+    if (!allowed.includes(key) || !value || value.startsWith("--")) throw new Error(`Invalid option: ${key}\n${usage}`);
+    if (key !== "--source" && key !== "--test" && values.has(key)) throw new Error(`Specify ${key} only once.`);
+    values.set(key, [...(values.get(key) ?? []), value]);
+  }
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  if (major < 22 || (major === 22 && minor < 18)) throw new Error("Coverage collection requires Node.js 22.18 or later.");
+  const root = path.resolve(values.get("--root")?.[0] ?? process.cwd());
+  const scope = await collectGitScope(root);
+  const { base } = await comparison(scope, values.get("--base")?.[0]);
+  const files = (await exec("git", ["ls-files", "-z", "--", "."], { cwd: root, maxBuffer: 10 * 1024 * 1024 })).stdout.split("\0").filter(Boolean);
+  const isTest = (file: string) => /(^|\/)(__tests__|tests?|specs?)\//i.test(file) || /\.(test|spec)\.[cm]?tsx?$/i.test(file);
+  const typescript = (file: string) => /\.[cm]?tsx?$/i.test(file) && !/\.d\.[cm]?ts$/i.test(file);
+  const sources = values.get("--source") ?? files.filter(file => /^src\//.test(file) && typescript(file) && !isTest(file));
+  const tests = values.get("--test") ?? files.filter(file => typescript(file) && isTest(file));
+  if (!sources.length || !tests.length) throw new Error("No TypeScript source or test files found. Specify --source and --test explicitly (repeat for multiple files).");
+  const output = path.resolve(values.get("--output")?.[0] ?? path.join(scope.repository, ".pi-verify", "coverage"));
+  await mkdir(output, { recursive: true });
+  await rm(path.join(output, "report.json"), { force: true });
+  console.log(`Running npm test through Supercov in ${root}. Sources: ${sources.length}; tests: ${tests.length}.`);
+  let collector: typeof import("./coverage/collector.js");
+  try { collector = await import("./coverage/collector.js"); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "MODULE_NOT_FOUND") throw error;
+    throw new Error("Supercov is not installed; reinstall pi-verify with optional dependencies enabled.");
+  }
+  const measurement = await collector.measure({ root, base, sourceFiles: sources, testFiles: tests, outputDirectory: output });
+  const report = await collector.buildReport(measurement);
+  await writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
+  console.log(`Coverage: ${path.join(output, "report.json")} (test exit ${report.run.exitCode}; stale: ${report.stale})`);
+  if (report.run.exitCode !== 0) process.exitCode = report.run.exitCode;
+  else if (report.stale) process.exitCode = 2;
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (!command || command === "--help" || command === "-h") { console.log(usage); return; }
   if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) { console.log(usage); return; }
+  if (command === "collect-coverage") { await collectCoverage(args); return; }
   if (command === "preview") {
     const opts = options(args, ["--output"]);
     let root: string;
@@ -48,18 +101,15 @@ async function main() {
   if (command !== "review") throw new Error(`Unknown command: ${command}\n${usage}`);
   const opts = options(args, ["--base", "--target", "--output", "--coverage-report"]);
   const scope = await collectGitScope(process.cwd());
-  const git = async (...argv: string[]) => (await exec("git", argv, { cwd: scope.repository })).stdout.trim();
-  const target = await git("rev-parse", "--verify", `${opts["--target"] ?? "HEAD"}^{commit}`);
-  const selected = opts["--base"] ?? (scope.baselineMethod === "branch-creation-reflog" ? scope.baseline : null);
-  if (!selected) throw new Error("Branch creation base is unavailable; specify --base REF.");
-  const base = await git("rev-parse", "--verify", `${selected}^{commit}`);
-  if (!opts["--base"]) {
-    try { await git("merge-base", "--is-ancestor", base, target); }
-    catch { throw new Error("Branch creation base is not an ancestor of target; specify --base REF."); }
-  }
-  const tree = await git("rev-parse", `${target}^{tree}`);
+  const { base, target, tree } = await comparison(scope, opts["--base"], opts["--target"]);
   const model = await collectConceptualModel(scope.repository, base, target);
-  const coverage = opts["--coverage-report"] ? await importCoverage(scope.repository, path.resolve(opts["--coverage-report"]), base, target) : undefined;
+  const defaultCoverage = path.join(scope.repository, ".pi-verify", "coverage", "report.json");
+  let coveragePath = opts["--coverage-report"] ? path.resolve(opts["--coverage-report"]) : undefined;
+  if (!coveragePath) {
+    try { await access(defaultCoverage); coveragePath = defaultCoverage; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  }
+  const coverage = coveragePath ? await importCoverage(scope.repository, coveragePath, base, target) : undefined;
   const section: ReviewSection = { status: "unavailable", source: "not-collected", scope: "Not collected in standalone review", revision: null, limitations: ["Not collected in this standalone review."], evidence: [] };
   const hasModel = model.basePresent || model.targetPresent;
   const review: ReviewReport = {

@@ -1,0 +1,23 @@
+# Coverage collection
+
+`pi-verify collect-coverage` runs the target project's `npm test` through the bundled Supercov adapter, then stores neutral evidence in `.pi-verify/coverage/` at the Git root. It requires Node.js 22.18 or later, Git, npm, installed project dependencies and a non-watch test script. Supercov is an optional package dependency; installation must include optional dependencies. Collection executes project code, may access services or write files, and creates a `.supercov/` workspace in the target project. Review test side effects before running it. Evidence and logs may contain sensitive source code and output.
+
+```bash
+npx pi-verify collect-coverage
+npx pi-verify review
+npx pi-verify preview
+```
+
+Collection selects the verified feature-branch creation base, just like review; use `--base REF` on both commands if it is unavailable or a different comparison is desired. Collection measures the current worktree at HEAD; review imports evidence only when its base, target, captured source/test snapshots and project configuration match the committed comparison. Stale or mismatched evidence makes review fail rather than silently reporting it as current. Failed tests produce a nonzero collection exit code and retain their outcome in the evidence. Review never runs tests.
+
+By default, the collector discovers Git-tracked TypeScript sources under `src/` and test files in test directories or named `*.test.ts`, `*.spec.ts`, and TSX equivalents. Discovery is a convenience, not proof of complete scope. To control it, repeat `--source` and `--test` for each project-relative file; providing either option replaces discovery for that category. For a monorepo, use `--root path/to/package` with paths relative to that package. Git-ignored and untracked files are not automatically discovered.
+
+```bash
+npx pi-verify collect-coverage --root frontend --base origin/main \
+  --source src/pricing.ts --test tests/pricing.test.ts
+npx pi-verify review --base origin/main
+```
+
+`--output DIR` changes the collection output directory. To import a non-default directory, use `pi-verify review --coverage-report DIR/report.json`; keep `supercov-evidence.json` beside it. The default is imported automatically when present. Remove the default coverage directory if you want a review without it. Add `.pi-verify/` and `.supercov/` to the target project's ignore rules if appropriate.
+
+The adapter is validated for TypeScript with `node:test` and Jest, including compiled TypeScript with source maps and a small Next.js Jest/TSX example. It is not validated for every runner, configuration or concurrency pattern. Static test mapping recognizes literal `test()`, `it()` and `describe()` declarations; dynamic or parameterized cases can remain unknown. The source/test allowlist limits the analysis, and observed execution is not proof of assertion strength. Unsupported or incomplete collector responses fail or are explicitly marked uncertain. See the [original spike notes](../spikes/supercov/README.md) for background and its separate experiments.
