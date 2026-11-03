@@ -151,6 +151,16 @@ test("architecture report marks slices awaiting human placement", () => {
   assert.match(html, /stroke-dasharray="5 3"/);
 });
 
+test("architecture report links the diagram for editing", () => {
+  const xml = drawing(["a"], []);
+  const after = diagramArchitectureModel(xml);
+  const review = { base: "b", target: "t", basePresent: true, targetPresent: true, before: null, after, delta: null, guardrail: { status: "passed" as const, diagnostics: [], unused: [] }, diagramXml: xml, sourcePath: "/repo/docs/architecture.drawio" };
+  const html = architectureHtml(review);
+  assert.match(html, /href="vscode:\/\/file\/repo\/docs\/architecture\.drawio"/);
+  assert.match(html, /\/verify approve/);
+  assert.doesNotMatch(architectureHtml({ ...review, sourcePath: null }), /vscode:\/\/file/);
+});
+
 test("architecture report escapes diagram labels and states its guardrail", () => {
   const after = diagramArchitectureModel(drawing(["<script>"], []));
   const failed = architectureHtml({ base: "b", target: "t", basePresent: true, targetPresent: true, before: null, after, delta: diffArchitectureModel(null, after), guardrail: { status: "failed", diagnostics: ["<script>"], unused: ["a->b"] }, diagramXml: "" });

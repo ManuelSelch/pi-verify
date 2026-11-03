@@ -1,11 +1,22 @@
 declare module "@earendil-works/pi-coding-agent" {
+  export interface AutocompleteItem {
+    value: string;
+    label: string;
+    description?: string;
+  }
+
+  export interface ExtensionCommandContext {
+    ui: { notify(message: string, type?: "info" | "warning" | "error"): void };
+  }
+
   export interface ExtensionAPI {
     registerTool(tool: unknown): void;
     registerCommand(
       name: string,
       options: {
         description: string;
-        handler: (argument: string) => void | Promise<void>;
+        getArgumentCompletions?: (argumentPrefix: string) => AutocompleteItem[] | null | Promise<AutocompleteItem[] | null>;
+        handler: (argument: string, ctx: ExtensionCommandContext) => void | Promise<void>;
       },
     ): void;
     sendUserMessage(message: string): void;

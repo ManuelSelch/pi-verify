@@ -45,6 +45,7 @@ export type ArchitectureReview = {
   before: ArchitectureModel | null; after: ArchitectureModel | null; delta: ReturnType<typeof diffArchitectureModel> | null;
   guardrail: { status: "passed" | "failed" | "unavailable"; diagnostics: string[]; unused: string[] };
   diagramXml: string | null;
+  sourcePath?: string | null;
 };
 
 /** Returns null when the project has not configured an architecture diagram. */
@@ -97,5 +98,5 @@ export async function collectArchitecture(repository: string, base: string | nul
     const diagnostics = checkArchitecture(code, after, { strict: newConfiguration.strict, transitive: newConfiguration.transitive });
     guardrail = { status: diagnostics.length ? "failed" : "passed", diagnostics, unused: unusedEdges(code, after) };
   }
-  return { base, target, basePresent: base ? !!oldXml : null, targetPresent: !!newXml, before, after, delta: base ? diffArchitectureModel(before, after) : null, guardrail, diagramXml: newXml };
+  return { base, target, basePresent: base ? !!oldXml : null, targetPresent: !!newXml, before, after, delta: base ? diffArchitectureModel(before, after) : null, guardrail, diagramXml: newXml, sourcePath: path.join(repository, withPrefix(newConfiguration.diagram)) };
 }

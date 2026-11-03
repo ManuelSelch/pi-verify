@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { access, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -8,7 +7,7 @@ import { collectGitScope, type GitScope } from "./git-scope.js";
 import { collectArchitecture } from "./architecture/collect.js";
 import { checkWorkingTree } from "./architecture/check.js";
 import { writeArchitectureDiagram } from "./architecture/write.js";
-import { configurationPath, parseConfiguration, type PiVerifyConfiguration } from "./config.js";
+import { resolveArchitectureWorkspace } from "./architecture/workspace.js";
 import { importCoverage, type CoverageReport } from "./review-report/infra/coverage.js";
 import { writeReportBundle } from "./report.js";
 import type { ReviewReport, ReviewSection } from "./review-report/domain/model.js";
@@ -42,41 +41,19 @@ async function comparison(scope: GitScope, baseOption?: string, targetOption?: s
   return { base, target, tree: await git("rev-parse", `${target}^{tree}`) };
 }
 
-async function repositoryRoot(): Promise<string> {
-  try { return (await exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim(); }
-  catch { return process.cwd(); }
-}
-
-/** Nearest `.pi/pi-verify.json` from the working directory up to the repository root. */
-function configurationDirectory(repository: string): string {
-  const repo = path.resolve(repository);
-  let current = path.resolve(process.cwd());
-  while (true) {
-    if (existsSync(path.join(current, configurationPath))) return current;
-    if (current === repo || path.relative(repo, current).startsWith("..")) return repo;
-    const parent = path.dirname(current);
-    if (parent === current) return repo;
-    current = parent;
-  }
-}
-
 async function checkArchitectureOnWorkingTree(write: boolean, accept: boolean) {
-  const repository = await repositoryRoot();
-  const base = configurationDirectory(repository);
-  let json: string | null = null;
-  try { json = await readFile(path.join(base, configurationPath), "utf8"); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-  const configuration: PiVerifyConfiguration = parseConfiguration(json);
-  if (!configuration.architecture) throw new Error(`Architecture is not configured: no ${configurationPath} found from ${process.cwd()} up to ${repository}.`);
+  const workspace = await resolveArchitectureWorkspace(process.cwd());
+  if (!workspace) throw new Error("Architecture is not configured: no .pi/pi-verify.json found.");
+  const { base, configuration } = workspace;
   if (write || accept) {
-    const result = writeArchitectureDiagram(base, configuration.architecture, { accept });
+    const result = writeArchitectureDiagram(base, configuration, { accept });
     console.log(result.changed
-      ? `Updated ${configuration.architecture.diagram}: +${result.addedSlices.length}/-${result.removedSlices.length} slices, +${result.addedEdges.length}/-${result.removedEdges.length} arrows.`
-      : `${configuration.architecture.diagram} is already current.`);
+      ? `Updated ${configuration.diagram}: +${result.addedSlices.length}/-${result.removedSlices.length} slices, +${result.addedEdges.length}/-${result.removedEdges.length} arrows.`
+      : `${configuration.diagram} is already current.`);
     if (accept) console.log("Accepted the current placement.");
     else if (result.stagedSlices.length) console.log(`Awaiting human placement: ${result.stagedSlices.join(", ")}`);
   }
-  const { errors, unused } = checkWorkingTree(base, configuration.architecture);
+  const { errors, unused } = checkWorkingTree(base, configuration);
   if (unused.length) console.log(`Allowed but unused: ${unused.join(", ")}`);
   if (errors.length) throw new Error(`Architecture check failed:\n${errors.map(error => `- ${error}`).join("\n")}`);
   console.log("Architecture: OK");

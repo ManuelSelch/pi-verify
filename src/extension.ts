@@ -1,5 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerVerificationTools, type VerificationLifecycleState } from "./verify-tools.js";
+import { approveArchitecture } from "./architecture/approve.js";
+import { openArchitectureDiagram } from "./architecture/open.js";
 
 export function buildVerifyPrompt(argument: string): string {
   const goal = argument.trim();
@@ -22,6 +24,7 @@ export function buildVerifyPrompt(argument: string): string {
     "- Mention source changes during checks and note baseline uncertainty instead of pretending the repo state was fully understood.",
     "- Do not manually write or overwrite `pi-verify-report.json`, `pi-verify-report.md`, or `pi-verify-report.html`; verify_finish manages the files.",
     "- Logs and traces may contain secrets, so include only what is needed and omit noisy raw dumps.",
+    "- If the project configures an architecture diagram (.pi/pi-verify.json), refresh it from the code with `npx pi-verify architecture --write` when this task adds, removes or moves a slice or its dependencies, so the architecture change is part of the review. Say so in the report.",
     "- Do not commit, merge, remove worktrees, alter repository refs, or delete sessions.",
     "",
     "Directives:",
@@ -67,8 +70,23 @@ export default function registerVerify(pi: ExtensionAPI): void {
     emitPendingVerificationReport(state, (message, options) => pi.sendMessage(message, options));
   });
   pi.registerCommand("verify", {
-    description: "Collect task evidence and generate a verification report",
-    handler: async (argument) => {
+    description: "Verify the task, or use /verify open and /verify approve for the architecture diagram",
+    getArgumentCompletions: (prefix) => {
+      const subcommands = [
+        { value: "open", label: "open", description: "Open the architecture diagram in VS Code" },
+        { value: "approve", label: "approve", description: "Accept the diagram placement and commit the architecture files" },
+      ];
+      if (prefix.includes(" ")) return null;
+      const matches = subcommands.filter(subcommand => subcommand.value.startsWith(prefix.trim().toLowerCase()));
+      return matches.length ? matches : null;
+    },
+    handler: async (argument, ctx) => {
+      const command = argument.trim().toLowerCase();
+      if (command === "open" || command === "approve") {
+        const result = command === "open" ? await openArchitectureDiagram(process.cwd()) : await approveArchitecture(process.cwd());
+        ctx.ui.notify(result.message, result.ok ? "info" : "error");
+        return;
+      }
       pi.sendUserMessage(buildVerifyPrompt(argument));
     },
   });
