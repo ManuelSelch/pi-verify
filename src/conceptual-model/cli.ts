@@ -8,6 +8,7 @@ async function main() {
   const [base, target = "HEAD", output = "conceptual-review", coveragePath] = process.argv.slice(2);
   if (!base) throw new Error("Usage: node dist/src/conceptual-model/cli.js BASE [TARGET] [OUTPUT_DIR] [COVERAGE_REPORT_JSON]");
   const model = await collectConceptualModel(process.cwd(), base, target);
+  if (!model) throw new Error("Conceptual model is disabled in .pi/pi-verify.json.");
   const coverage = coveragePath ? await importCoverage(process.cwd(), path.resolve(coveragePath), base, target) : undefined;
   const section: ReviewSection = { status: "unavailable", source: "not-collected", scope: "Not collected in standalone conceptual review", revision: null, limitations: ["Not collected in this standalone conceptual review."], evidence: [] };
   const review: ReviewReport = { schemaVersion: 1, conceptualModel: model, ...(coverage ? { coverage } : {}), comparison: { status: "available", base, target, targetTree: null, method: "unavailable", includesUncommitted: false, excludedWorkingTree: { staged: [], unstaged: [], untracked: [] }, limitations: ["Standalone comparison of explicitly supplied revisions; working tree is excluded."] }, sections: { overview: section, changes: section, testsCoverage: coverage ? { ...section, status: "available", source: "coverage-collector", revision: coverage.comparison.head, scope: "Imported per-test coverage", limitations: coverage.limitations } : section, complexity: section, architecture: { ...section, status: "available", source: "git" }, evidence: section } };

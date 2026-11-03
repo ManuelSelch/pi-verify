@@ -42,7 +42,7 @@ export class ConceptualDiffDriver {
   }
 
   givenProjectDiagram() {
-    this.write(".pi/conceptual-model.json", JSON.stringify({ diagram: "frontend/docs/domain.drawio" }));
+    this.write(".pi/pi-verify.json", JSON.stringify({ conceptualModel: { diagram: "frontend/docs/domain.drawio" } }));
     this.write("frontend/docs/domain.drawio", drawing("Project", 10));
     // An unrelated source file must not become an implicit code-conformance contract.
     this.write("src/review-report/domain/model.ts", "export interface Unsupported {} ");
@@ -50,7 +50,7 @@ export class ConceptualDiffDriver {
   }
 
   useConventionalDiagramWithoutConfiguration() {
-    this.git("rm", ".pi/conceptual-model.json");
+    this.git("rm", ".pi/pi-verify.json");
     this.write("docs/conceptual-model.drawio", drawing("Project", 10));
     this.base = this.commit();
     this.write("docs/conceptual-model.drawio", drawing("Studio project", 10));
@@ -74,22 +74,22 @@ export class ConceptualDiffDriver {
 
   moveDiagram() {
     this.git("mv", "frontend/docs/domain.drawio", "frontend/docs/renamed.drawio");
-    this.write(".pi/conceptual-model.json", JSON.stringify({ diagram: "frontend/docs/renamed.drawio" }));
+    this.write(".pi/pi-verify.json", JSON.stringify({ conceptualModel: { diagram: "frontend/docs/renamed.drawio" } }));
     this.target = this.commit();
   }
 
   leaveUncommittedConfiguration() {
-    this.write(".pi/conceptual-model.json", "invalid loose JSON");
+    this.write(".pi/pi-verify.json", "invalid loose JSON");
     this.write("frontend/docs/domain.drawio", "invalid loose XML");
   }
 
   configureInvalidPath() {
-    this.write(".pi/conceptual-model.json", JSON.stringify({ diagram: "../outside.drawio" }));
+    this.write(".pi/pi-verify.json", JSON.stringify({ conceptualModel: { diagram: "../outside.drawio" } }));
     this.target = this.commit();
   }
 
   async compare() {
-    this.review = await collectConceptualModel(this.directory, this.base, this.target);
+    this.review = (await collectConceptualModel(this.directory, this.base, this.target))!;
   }
 
   async generateVerifyReport() {

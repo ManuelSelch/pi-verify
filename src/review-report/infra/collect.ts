@@ -34,7 +34,7 @@ export async function collectReviewReport(scope: GitScope | undefined, evidence:
   if (scope) {
     try {
       const collected = await collectConceptualModel(scope.repository, base, scope.head);
-      if (collected.targetPresent || collected.basePresent) conceptualModel = collected;
+      if (collected && (collected.targetPresent || collected.basePresent)) conceptualModel = collected;
     } catch (error) {
       modelFailure = `Conceptual model could not be collected: ${error instanceof Error ? error.message : String(error)}`;
     }

@@ -1,26 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { checkSlices, codeSliceModel, diagramSliceModel, diffSliceModel, isSliceFile, unusedAssociations, type SliceModel } from "./model.js";
+import { configurationPath, parseConfiguration } from "../config.js";
 
 const exec = promisify(execFile);
-const configurationPath = ".pi/slice-model.json";
-type Configuration = { diagram: string; root: string; strict: boolean };
-
-function relativePath(name: string, value: unknown): string {
-  if (typeof value !== "string" || /[\\:\u0000-\u001f\u007f]/.test(value) || value.split("/").some(part => !part || part === "." || part === ".."))
-    throw new Error(`Slice model ${name} must be a repository-relative path.`);
-  return value;
-}
-
-function configuration(json: string | null): Configuration | null {
-  if (json === null) return null;
-  const value = JSON.parse(json);
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !["diagram", "root", "strict"].includes(key)))
-    throw new Error("Slice model configuration must contain diagram and root, and optionally strict.");
-  const strict = value.strict ?? false;
-  if (typeof strict !== "boolean") throw new Error("Slice model strict must be a boolean.");
-  return { diagram: relativePath("diagram", value.diagram), root: relativePath("root", value.root), strict };
-}
 
 export type SliceReview = {
   base: string | null; target: string; basePresent: boolean | null; targetPresent: boolean;
@@ -48,8 +31,8 @@ export async function collectSliceModel(repository: string, base: string | null,
   };
 
   const [oldConfiguration, newConfiguration] = await Promise.all([
-    base ? blob(base, configurationPath).then(configuration) : null,
-    blob(target, configurationPath).then(configuration),
+    base ? blob(base, configurationPath).then(json => parseConfiguration(json).sliceModel) : null,
+    blob(target, configurationPath).then(json => parseConfiguration(json).sliceModel),
   ]);
   if (!newConfiguration) return null;
 

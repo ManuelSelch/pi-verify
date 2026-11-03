@@ -73,19 +73,43 @@ The review sections identify their source, scope, revision, status, limitations,
 
 Each new bundle also contains a standalone HTML report. `verify_finish` returns its path with the existing JSON and Markdown paths; the one-time Pi message links to it without triggering a model turn. The report uses embedded styles and no network assets or scripts, and links only to selected artifacts inside the bundle using relative paths. Supported raster screenshots appear at their natural size up to the available width; logs, videos, SVGs and other files are downloadable rather than embedded. Copy the whole bundle to preserve evidence links. Navigation uses URL fragments and CSS; a modern browser supporting `:has()` is required to switch sections. HTML is escaped and the report uses a restrictive content security policy; attached files themselves remain untrusted.
 
+## Configuration
+
+A single committed `.pi/pi-verify.json` at the Git repository root holds every pi-verify diagram setting:
+
+```json
+{
+  "conceptualModel": {
+    "diagram": "docs/conceptual-model.drawio",
+    "source": "src/review-report/domain/model.ts"
+  },
+  "sliceModel": {
+    "diagram": "docs/architecture.drawio",
+    "root": "src",
+    "strict": false
+  }
+}
+```
+
+- `conceptualModel.diagram` is required when the key is present; `source` enables the TypeScript conformance check. An absent `conceptualModel` key keeps the conventional `docs/conceptual-model.drawio`; `"conceptualModel": null` disables it.
+- `sliceModel.diagram` and `sliceModel.root` are required; `strict` is optional and defaults to `false`. An absent or `null` `sliceModel` disables slice checking.
+- Paths are repository-relative, using `/`; absolute paths, traversal and unknown fields at any level are rejected. Each revision uses its own committed configuration.
+
+The file is read at the compared revisions, not from the working tree.
+
 ## Conceptual diagram comparison
 
 ### Reuse in another project (diagram-only)
 
-Commit an uncompressed draw.io XML diagram and, if it is not at `docs/conceptual-model.drawio`, a `.pi/conceptual-model.json` at the Git repository root:
+Commit an uncompressed draw.io XML diagram and, if it is not at `docs/conceptual-model.drawio`, configure it under `conceptualModel` in [.pi/pi-verify.json](#configuration):
 
 ```json
 {
-  "diagram": "frontend/docs/conceptual-model.drawio"
+  "conceptualModel": { "diagram": "frontend/docs/conceptual-model.drawio" }
 }
 ```
 
-Paths are repository-relative, using `/`; absolute paths, traversal and unknown configuration fields are rejected. Each revision uses its own committed configuration, so moving a configured diagram does not lose its history. Without configuration, `docs/conceptual-model.drawio` is used. Configuration and diagrams in the working tree are excluded, just like other comparison inputs.
+Each revision uses its own committed configuration, so moving a configured diagram does not lose its history. Configuration and diagrams in the working tree are excluded, just like other comparison inputs.
 
 No source file is required. The existing Changes / Before / After views work independently of source checking; the guardrail is explicitly unavailable with “Source-code conformance checking is not configured; diagram comparison only.” This does not mean the comparison failed or that the diagram matches the implementation. `/verify` collects the configured diagram automatically; the standalone CLI below also works when launched from another project's Git root.
 
@@ -110,7 +134,7 @@ Open the `report` HTML path printed by the command. The base and target must be 
 
 ### Optional TypeScript conformance check
 
-Add `"source": "path/to/domain-model.ts"` to the same configuration to enable the existing single-file TypeScript guardrail. This is an explicit opt-in, not required for diagram diffs. This repository opts in via [.pi/conceptual-model.json](../.pi/conceptual-model.json).
+Add `"source": "path/to/domain-model.ts"` to `conceptualModel` in [.pi/pi-verify.json](#configuration) to enable the existing single-file TypeScript guardrail. This is an explicit opt-in, not required for diagram diffs. This repository opts in via [.pi/pi-verify.json](../.pi/pi-verify.json).
 
 [docs/conceptual-model.drawio](../docs/conceptual-model.drawio) is the editable, hand-arranged model of the exported type aliases in [the review-report domain](../src/review-report/domain/model.ts). Its `concept` and `assoc` attributes identify boxes and links independently of layout. Relationships are type references between those aliases; references inside arrays and `Record` are many, shown by `*` at the referenced end. These are structural type relationships, **not** runtime, deployment or complete repository architecture. Exported interfaces, multi-page/compressed drawings and draw.io PNGs are not supported; unsupported input fails rather than being presented as verified. Open the XML file in draw.io and keep visible labels, metadata and multiplicities aligned. Layout and styling belong to the human; `placed="auto"` marks an unfinished box and fails the check.
 
@@ -129,14 +153,13 @@ The model and semantic-diff approach are adapted from [human-review](https://git
 
 ## Slice architecture comparison
 
-A second, independent guardrail checks module-level architecture: the immediate subfolders of a configured root are the slices, and relative TypeScript imports between them are the dependencies. It is configured separately and is entirely optional; without `.pi/slice-model.json` nothing is collected.
+A second, independent guardrail checks module-level architecture: the immediate subfolders of a configured root are the slices, and relative TypeScript imports between them are the dependencies. It is optional; without a `sliceModel` key in [.pi/pi-verify.json](#configuration) nothing is collected.
 
-Commit an uncompressed draw.io diagram with one box per slice (`concept="domain"`, label equal to the folder name) and one directed arrow per allowed dependency (`assoc="domain->infra"`), then add `.pi/slice-model.json` at the Git repository root:
+Commit an uncompressed draw.io diagram with one box per slice (`concept="domain"`, label equal to the folder name) and one directed arrow per allowed dependency (`assoc="domain->infra"`), then add it to [.pi/pi-verify.json](#configuration):
 
 ```json
 {
-  "diagram": "docs/architecture.drawio",
-  "root": "src"
+  "sliceModel": { "diagram": "docs/architecture.drawio", "root": "src" }
 }
 ```
 

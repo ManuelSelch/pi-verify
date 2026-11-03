@@ -134,18 +134,18 @@ async function main() {
     }
   }
   const section: ReviewSection = { status: "unavailable", source: "not-collected", scope: "Not collected in standalone review", revision: null, limitations: ["Not collected in this standalone review."], evidence: [] };
-  const hasModel = model.basePresent || model.targetPresent;
+  const hasModel = !!model && (model.basePresent || model.targetPresent);
   const hasSlices = !!slices && (slices.targetPresent || slices.basePresent);
   const review: ReviewReport = {
     schemaVersion: 1,
-    ...(hasModel ? { conceptualModel: model } : {}),
-    ...(hasSlices ? { sliceModel: slices } : {}),
+    ...(model && hasModel ? { conceptualModel: model } : {}),
+    ...(slices && hasSlices ? { sliceModel: slices } : {}),
     ...(coverage ? { coverage } : {}),
     comparison: { status: "available", base, target, targetTree: tree, method: opts["--base"] ? "explicit" : "branch-creation-reflog", includesUncommitted: false, excludedWorkingTree: { staged: scope.staged, unstaged: scope.unstaged, untracked: scope.untracked }, limitations: ["Working tree changes are excluded."] },
     sections: {
       overview: section, changes: section, complexity: section, evidence: section,
       testsCoverage: coverage ? { ...section, status: "available", source: "coverage-collector", revision: target, scope: "Imported per-test coverage", limitations: coverage.limitations } : { ...section, scope: "Per-test coverage", limitations: ["No coverage report supplied."] },
-      architecture: hasModel || hasSlices ? { ...section, status: "available", source: "git", revision: target, scope: "Committed architecture diagram comparison", limitations: [...(hasModel ? model.guardrail.diagnostics : []), ...(hasSlices ? slices.guardrail.diagnostics : [])] } : { ...section, scope: "Architecture", limitations: ["No supported architecture diagram found."] },
+      architecture: hasModel || hasSlices ? { ...section, status: "available", source: "git", revision: target, scope: "Committed architecture diagram comparison", limitations: [...(model && hasModel ? model.guardrail.diagnostics : []), ...(slices && hasSlices ? slices.guardrail.diagnostics : [])] } : { ...section, scope: "Architecture", limitations: ["No supported architecture diagram found."] },
     },
   };
   const output = path.resolve(opts["--output"] ?? path.join(scope.repository, ".pi-verify"));

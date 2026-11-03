@@ -19,15 +19,16 @@ test("compares committed revisions, reporting an absent historical diagram and e
   writeFileSync(path.join(dir, "docs/conceptual-model.drawio"), readFileSync("docs/conceptual-model.drawio"));
   writeFileSync(path.join(dir, "src/review-report/domain/model.ts"), readFileSync("src/review-report/domain/model.ts"));
   mkdirSync(path.join(dir, ".pi"), { recursive: true });
-  writeFileSync(path.join(dir, ".pi/conceptual-model.json"), readFileSync(".pi/conceptual-model.json"));
+  writeFileSync(path.join(dir, ".pi/pi-verify.json"), JSON.stringify({ conceptualModel: { diagram: "docs/conceptual-model.drawio", source: "src/review-report/domain/model.ts" } }));
   git("add", "docs", "src", ".pi"); git("commit", "-qm", "model");
   const target = git("rev-parse", "HEAD");
   writeFileSync(path.join(dir, "docs/conceptual-model.drawio"), "loose edit");
   const review = await collectConceptualModel(dir, base, target);
+  assert.ok(review);
   assert.equal(review.basePresent, false);
   assert.equal(review.guardrail.status, "passed");
   assert.deepEqual(review.delta?.added, ["association ReviewReport-ReviewSection", "concept ReviewReport", "concept ReviewSection"]);
-  assert.deepEqual((await collectConceptualModel(dir, target, target)).delta, { added: [], removed: [], changed: [] });
+  assert.deepEqual((await collectConceptualModel(dir, target, target))?.delta, { added: [], removed: [], changed: [] });
   const reviewReport = await collectReviewReport({ repository: dir, branch: "feature", head: target, baseline: base, baselineMethod: "branch-creation-reflog", fingerprint: "", clean: false, staged: [], unstaged: ["docs/conceptual-model.drawio"], untracked: [], commits: [] }, []);
   const bundle = await writeReportBundle(path.join(dir, "bundle"), { goal: "test", verdict: "UNKNOWN", review: reviewReport });
   assert.equal(reviewReport.sections.architecture.status, "available");

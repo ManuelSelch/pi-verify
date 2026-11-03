@@ -34,7 +34,7 @@ function repository(t: TestContext): { dir: string; git: (...args: string[]) => 
 test("collects committed slice architecture and checks import direction between folders", async (t) => {
   const { dir, git, write } = repository(t);
   const base = git("rev-parse", "HEAD");
-  write(".pi/slice-model.json", JSON.stringify({ diagram: "docs/architecture.drawio", root: "src" }));
+  write(".pi/pi-verify.json", JSON.stringify({ sliceModel: { diagram: "docs/architecture.drawio", root: "src" } }));
   write("docs/architecture.drawio", drawing(["domain", "infra", "report", "ui"], ["domain->infra", "report->domain", "ui->report"]));
   write("src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
   write("src/infra/db.ts", `export function table(name: string) { return name; }`);
@@ -64,7 +64,7 @@ test("collects committed slice architecture and checks import direction between 
 test("reports an undeclared dependency without failing collection", async (t) => {
   const { dir, git, write } = repository(t);
   const base = git("rev-parse", "HEAD");
-  write(".pi/slice-model.json", JSON.stringify({ diagram: "docs/architecture.drawio", root: "src" }));
+  write(".pi/pi-verify.json", JSON.stringify({ sliceModel: { diagram: "docs/architecture.drawio", root: "src" } }));
   write("docs/architecture.drawio", drawing(["domain", "infra"], ["report->domain"]));
   write("src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
   write("src/infra/db.ts", `export function table(name: string) { return name; }`);

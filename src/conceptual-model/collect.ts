@@ -1,23 +1,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { checkModel, codeModel, diagramModel, diffModel, type Model } from "./model.js";
+import { configurationPath, parseConfiguration } from "../config.js";
 
 const exec = promisify(execFile);
-const configurationPath = ".pi/conceptual-model.json";
-type Configuration = { diagram: string; source?: string };
 
-function configuration(json: string | null): Configuration {
-  if (json === null) return { diagram: "docs/conceptual-model.drawio" };
-  const value = JSON.parse(json);
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => key !== "diagram" && key !== "source"))
-    throw new Error("Conceptual model configuration must contain diagram and optionally source.");
-  const relativePath = (name: string, file: unknown): string => {
-    if (typeof file !== "string" || /[\\\\:\u0000-\u001f\u007f]/.test(file) || file.split("/").some(part => !part || part === "." || part === ".."))
-      throw new Error(`Conceptual model ${name} must be a repository-relative file path.`);
-    return file;
-  };
-  return { diagram: relativePath("diagram", value.diagram), ...("source" in value ? { source: relativePath("source", value.source) } : {}) };
-}
 export type ConceptualReview = {
   base: string | null; target: string; basePresent: boolean | null; targetPresent: boolean;
   before: Model | null; after: Model | null; delta: ReturnType<typeof diffModel> | null;
@@ -25,7 +12,8 @@ export type ConceptualReview = {
   diagramXml: string | null;
 };
 
-export async function collectConceptualModel(repository: string, base: string | null, target: string): Promise<ConceptualReview> {
+/** Returns null when the project has disabled the conceptual model in its configuration. */
+export async function collectConceptualModel(repository: string, base: string | null, target: string): Promise<ConceptualReview | null> {
   const git = async (...args: string[]) => (await exec("git", args, { cwd: repository, maxBuffer: 10 * 1024 * 1024 })).stdout;
   await git("rev-parse", "--verify", `${target}^{commit}`);
   if (base) await git("rev-parse", "--verify", `${base}^{commit}`);
@@ -35,9 +23,10 @@ export async function collectConceptualModel(repository: string, base: string | 
     return git("show", `${ref}:${file}`);
   };
   const [oldConfiguration, newConfiguration] = await Promise.all([
-    base ? blob(base, configurationPath).then(configuration) : null,
-    blob(target, configurationPath).then(configuration),
+    base ? blob(base, configurationPath).then(json => parseConfiguration(json).conceptualModel) : null,
+    blob(target, configurationPath).then(json => parseConfiguration(json).conceptualModel),
   ]);
+  if (!newConfiguration) return null;
   const [oldXml, newXml, source] = await Promise.all([
     base && oldConfiguration ? blob(base, oldConfiguration.diagram) : null,
     blob(target, newConfiguration.diagram),
