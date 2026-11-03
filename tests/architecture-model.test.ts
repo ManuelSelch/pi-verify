@@ -49,6 +49,24 @@ test("resolves tsconfig path aliases into cross-folder edges", () => {
   assert.deepEqual(model.edges.map(edge => edge.key), ["app->components", "components->config"]);
 });
 
+test("groups nested folders into slices with ordered prefix patterns", () => {
+  const base = path.resolve("/tmp/pi-verify-alias-project");
+  const model = codeArchitectureModel({
+    files: files({
+      "app/page.ts": `import { getBriefing } from "@/features/briefing/api/get-briefing"; export const page = getBriefing;`,
+      "features/briefing/api/get-briefing.ts": `import { Button } from "@/components/button"; export const getBriefing = Button;`,
+      "features/projects/api/get-projects.ts": `import { client } from "@/lib/client"; export const getProjects = client;`,
+      "components/button.ts": `export const Button = 1;`,
+      "lib/client.ts": `export const client = 1;`,
+    }),
+    root: path.join(base, "src"),
+    aliases: [{ pattern: "@/*", targets: ["./src/*"] }],
+    aliasBase: base,
+  }, { slices: ["features/*", "*"] });
+  assert.deepEqual(model.slices.map(slice => slice.name), ["app", "components", "features/briefing", "features/projects", "lib"]);
+  assert.deepEqual(model.edges.map(edge => edge.key), ["app->features/briefing", "features/briefing->components", "features/projects->lib"]);
+});
+
 test("reads tsconfig compilerOptions.paths and ignores a configuration without paths", () => {
   const base = path.resolve("/tmp/pi-verify-alias-project");
   assert.deepEqual(aliasesFromConfig("tsconfig.json", JSON.stringify({ compilerOptions: { paths: { "@/*": ["./src/*"] } } }), base), { aliases: [{ pattern: "@/*", targets: ["./src/*"] }], aliasBase: base });

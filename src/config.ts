@@ -1,6 +1,6 @@
 export const configurationPath = ".pi/pi-verify.json";
 
-export type ArchitectureConfiguration = { diagram: string; root: string; strict: boolean };
+export type ArchitectureConfiguration = { diagram: string; root: string; strict: boolean; slices: string[] };
 export type PiVerifyConfiguration = { architecture: ArchitectureConfiguration | null };
 
 function relativePath(name: string, value: unknown): string {
@@ -17,11 +17,22 @@ function entry(name: string, value: unknown, allowed: string[]): Record<string, 
   return object;
 }
 
+function slicePatterns(value: unknown): string[] {
+  const patterns = value === undefined ? ["*"] : value;
+  if (!Array.isArray(patterns) || !patterns.length || !patterns.every(pattern => typeof pattern === "string" && pattern.length))
+    throw new Error("pi-verify architecture slices must be a non-empty array of folder patterns.");
+  return (patterns as string[]).map(pattern => {
+    if (pattern.startsWith("/") || pattern.split("/").some(part => !part || part === "." || part === ".." || (part !== "*" && /[\\:*?"<>|\u0000-\u001f\u007f]/.test(part))))
+      throw new Error("pi-verify architecture slices must be repository-relative folder patterns.");
+    return pattern;
+  });
+}
+
 function architectureConfiguration(value: unknown): ArchitectureConfiguration {
-  const object = entry("architecture", value, ["diagram", "root", "strict"]);
+  const object = entry("architecture", value, ["diagram", "root", "strict", "slices"]);
   const strict = object.strict ?? false;
   if (typeof strict !== "boolean") throw new Error("pi-verify architecture strict must be a boolean.");
-  return { diagram: relativePath("architecture diagram", object.diagram), root: relativePath("architecture root", object.root), strict };
+  return { diagram: relativePath("architecture diagram", object.diagram), root: relativePath("architecture root", object.root), strict, slices: slicePatterns(object.slices) };
 }
 
 /**

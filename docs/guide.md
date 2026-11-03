@@ -88,19 +88,21 @@ A single committed `.pi/pi-verify.json` at the Git repository root configures pi
   "architecture": {
     "diagram": "docs/architecture.drawio",
     "root": "src",
-    "strict": false
+    "strict": false,
+    "slices": ["features/*", "*"]
   }
 }
 ```
 
 - `architecture` is optional. `diagram` and `root` are required when it is present; `strict` defaults to `false`. An absent or `null` `architecture` disables architecture checking.
+- `slices` is an optional, ordered list of folder patterns where `*` matches one path segment; the first match wins. The default `["*"]` makes every immediate subfolder of `root` a slice. `["features/*", "*"]` groups `features/briefing/...` as the slice `features/briefing` while every other top-level folder stays a slice. A file no pattern matches belongs to no slice.
 - Paths are repository-relative, using `/`; absolute paths, traversal and unknown fields are rejected. Each revision uses its own committed configuration.
 
 The file is read at the compared revisions, not from the working tree.
 
 ## Architecture comparison
 
-The architecture guardrail checks module-level structure: the immediate subfolders of `root` are the slices, and relative TypeScript imports between them are the dependencies. It is optional; without an `architecture` key in [.pi/pi-verify.json](#configuration) nothing is collected.
+The architecture guardrail checks module-level structure: folders under `root` are the slices (selected by `slices` patterns, defaulting to each immediate subfolder), and imports between them are the dependencies. It is optional; without an `architecture` key in [.pi/pi-verify.json](#configuration) nothing is collected.
 
 `npx pi-verify architecture` runs the check against the working tree and is the usual way to adopt it in another project or CI. It resolves the nearest `.pi/pi-verify.json` from the working directory up to the Git repository root, and resolves `diagram` and `root` relative to that directory — so a package inside a monorepo keeps its own configuration and the check runs with the package as the working directory. `review` additionally compares committed revisions and renders the HTML panel; it reads the repository-root configuration. `/verify` collects the same comparison automatically.
 
@@ -120,7 +122,7 @@ By default arrows are an allow-list: every code dependency must be an arrow, whi
 
 Each revision uses its own committed configuration, and the working tree is excluded. When `/verify` or `review` runs, the target diagram is bundled as `architecture.drawio`, and the report renders the panel with Changes / Before / After views. A missing historical diagram is labelled absent; unavailable bases and invalid data are not treated as successful comparisons.
 
-This is an import-graph check, not a runtime or dynamic-dependency check. Bare package specifiers are external, slices are exactly the immediate subfolders of `root`, and each source file is read with one `git show` call. Only uncompressed, single-page draw.io XML is supported, not `.drawio.png` or compressed drawings.
+This is an import-graph check, not a runtime or dynamic-dependency check. Bare package specifiers are external (unless a tsconfig alias resolves them), slices are the folders the `slices` patterns select, and each source file is read with one `git show` call. Only uncompressed, single-page draw.io XML is supported, not `.drawio.png` or compressed drawings.
 
 To generate a standalone report for another repository:
 

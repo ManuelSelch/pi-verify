@@ -7,9 +7,16 @@ test("an absent configuration disables the architecture check", () => {
 });
 
 test("parses the architecture section", () => {
-  assert.deepEqual(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true } })), {
-    architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true },
+  assert.deepEqual(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true, slices: ["features/*", "*"] } })), {
+    architecture: { diagram: "docs/architecture.drawio", root: "src", strict: true, slices: ["features/*", "*"] },
   });
+});
+
+test("slice patterns default to the first folder and are validated", () => {
+  assert.deepEqual(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/a.drawio", root: "src" } })).architecture?.slices, ["*"]);
+  assert.deepEqual(parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/a.drawio", root: "src", slices: ["features/*", "*"] } })).architecture?.slices, ["features/*", "*"]);
+  assert.throws(() => parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/a.drawio", root: "src", slices: [] } })), /slices/);
+  assert.throws(() => parseConfiguration(JSON.stringify({ architecture: { diagram: "docs/a.drawio", root: "src", slices: ["../x"] } })), /folder patterns/);
 });
 
 test("strict defaults to false and null or a missing key disables", () => {

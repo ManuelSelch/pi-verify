@@ -15,7 +15,7 @@ function workingTreeAliases(base: string): { aliases: ArchitectureAlias[]; alias
 
 /** Check the working tree, not committed revisions, against the configured diagram. */
 export function checkWorkingTree(base: string, configuration: ArchitectureConfiguration): WorkingTreeCheck {
-  const code = codeArchitectureModel(readArchitectureSource(path.join(base, configuration.root), workingTreeAliases(base)));
+  const code = codeArchitectureModel(readArchitectureSource(path.join(base, configuration.root), workingTreeAliases(base)), { slices: configuration.slices });
   const diagramPath = path.join(base, configuration.diagram);
   if (!existsSync(diagramPath)) throw new Error(`Architecture diagram not found: ${configuration.diagram}`);
   const diagram = diagramArchitectureModel(readFileSync(diagramPath, "utf8"));

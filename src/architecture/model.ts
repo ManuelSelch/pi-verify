@@ -102,25 +102,41 @@ export function aliasesFromConfig(fileName: string, text: string, base: string):
  * A file directly under the root belongs to no slice; unresolved specifiers (assets,
  * external files) are ignored, since architecture does not depend on them.
  */
-export function codeArchitectureModel(source: ArchitectureSource): ArchitectureModel {
+/**
+ * Slice identity for a file path, using ordered prefix patterns where `*` matches one
+ * segment (`features/*` groups `features/briefing/...` as `features/briefing`; `*` groups
+ * `app/...` as `app`). The default is `["*"]`. A file no pattern matches belongs to no
+ * slice.
+ */
+function sliceMatcher(patterns: string[]): (segments: string[]) => string | null {
+  const parsed = (patterns.length ? patterns : ["*"]).map(pattern => pattern.split("/"));
+  return segments => {
+    for (const pattern of parsed) {
+      if (segments.length <= pattern.length) continue;
+      if (pattern.every((part, index) => part === "*" || part === segments[index])) return segments.slice(0, pattern.length).join("/");
+    }
+    return null;
+  };
+}
+
+export function codeArchitectureModel(source: ArchitectureSource, options: { slices?: string[] } = {}): ArchitectureModel {
   const files = new Map([...source.files].map(([file, content]) => [posix(file), content]));
   const paths = new Set(files.keys());
   const slices = new Set<string>();
   const edges = new Map<string, ArchitectureEdge>();
+  const sliceOf = sliceMatcher(options.slices ?? []);
 
   for (const [file, content] of files) {
-    const segments = file.split("/");
-    if (segments.length < 2 || !isArchitectureFile(file)) continue;
-    const from = segments[0];
+    if (!isArchitectureFile(file)) continue;
+    const from = sliceOf(file.split("/"));
+    if (!from) continue;
     slices.add(from);
     const { importedFiles } = ts.preProcessFile(content, true, true);
     for (const imported of importedFiles) {
       const resolved = resolveSpecifier(file, imported.fileName, paths, source);
       if (!resolved) continue;
-      const targetSegments = resolved.split("/");
-      if (targetSegments.length < 2) continue;
-      const to = targetSegments[0];
-      if (to === from) continue;
+      const to = sliceOf(resolved.split("/"));
+      if (!to || to === from) continue;
       slices.add(to);
       edges.set(pair(from, to), { key: pair(from, to), from, to });
     }

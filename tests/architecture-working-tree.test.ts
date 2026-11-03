@@ -19,6 +19,8 @@ function scratch(t: TestContext) {
 
 const drawing = (slices: string[], edges: string[]) => `<mxfile><diagram><mxGraphModel><root>${slices.map(slice => `<object id="box-${slice}" concept="${slice}" label="${slice}"><mxCell vertex="1"><mxGeometry x="0" y="0" width="140" height="50"/></mxCell></object>`).join("")}${edges.map(edge => { const [from, to] = edge.split("->"); return `<object id="edge-${from}-${to}" assoc="${from}->${to}"><mxCell edge="1" source="box-${from}" target="box-${to}"/></object>`; }).join("")}</root></mxGraphModel></diagram></mxfile>`;
 
+const defaultConfiguration = { diagram: "docs/architecture.drawio", root: "src", strict: false, slices: ["*"] };
+
 test("readArchitectureSource reads only TypeScript sources and skips tests", (t) => {
   const { dir, write } = scratch(t);
   write("src/domain/model.ts", "export const model = 1;");
@@ -30,7 +32,7 @@ test("readArchitectureSource reads only TypeScript sources and skips tests", (t)
 
 test("checkWorkingTree accepts a matching tree and reports an undeclared dependency", (t) => {
   const { dir, write } = scratch(t);
-  const configuration = { diagram: "docs/architecture.drawio", root: "src", strict: false };
+  const configuration = defaultConfiguration;
   write("docs/architecture.drawio", drawing(["domain", "infra"], ["domain->infra"]));
   write("src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
   write("src/infra/db.ts", `export function table(name: string) { return name; }`);
@@ -45,11 +47,11 @@ test("checkWorkingTree follows tsconfig path aliases", (t) => {
   write("docs/architecture.drawio", drawing(["app", "components"], ["app->components"]));
   write("src/app/page.ts", `import { Button } from "@/components/button"; export const page = Button;`);
   write("src/components/button.ts", `export const Button = 1;`);
-  assert.deepEqual(checkWorkingTree(dir, { diagram: "docs/architecture.drawio", root: "src", strict: false }), { errors: [], unused: [] });
+  assert.deepEqual(checkWorkingTree(dir, defaultConfiguration), { errors: [], unused: [] });
 });
 
 test("checkWorkingTree fails loudly on a missing diagram", (t) => {
   const { dir, write } = scratch(t);
   write("src/domain/model.ts", "export const model = 1;");
-  assert.throws(() => checkWorkingTree(dir, { diagram: "docs/architecture.drawio", root: "src", strict: false }), /not found/);
+  assert.throws(() => checkWorkingTree(dir, defaultConfiguration), /not found/);
 });

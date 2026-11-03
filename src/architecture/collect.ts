@@ -66,7 +66,7 @@ export async function collectArchitecture(repository: string, base: string | nul
       unused: [],
     };
   else {
-    const code = codeArchitectureModel({ files, root: path.join(repository, newConfiguration.root), ...(aliases ? { aliases: aliases.aliases, aliasBase: aliases.aliasBase } : {}) });
+    const code = codeArchitectureModel({ files, root: path.join(repository, newConfiguration.root), ...(aliases ? { aliases: aliases.aliases, aliasBase: aliases.aliasBase } : {}) }, { slices: newConfiguration.slices });
     const diagnostics = checkArchitecture(code, after, { strict: newConfiguration.strict });
     guardrail = { status: diagnostics.length ? "failed" : "passed", diagnostics, unused: unusedEdges(code, after) };
   }
