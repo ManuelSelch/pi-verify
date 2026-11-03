@@ -1,8 +1,18 @@
 import type { ArchitectureReview } from "./collect.js";
-import type { ArchitectureModel } from "./model.js";
+import type { ArchitectureModel, ArchitectureSlice } from "./model.js";
 
 const esc = (v: unknown) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const number = (v: number) => Number.isFinite(v) ? Math.max(-10000, Math.min(10000, v)) : 0;
+
+/** Where the ray from a box centre toward (tx, ty) crosses that box's border. */
+function borderPoint(slice: ArchitectureSlice, tx: number, ty: number): { x: number; y: number } | null {
+  const cx = number(slice.x + slice.width / 2), cy = number(slice.y + slice.height / 2);
+  const dx = tx - cx, dy = ty - cy;
+  if (dx === 0 && dy === 0) return null;
+  const halfWidth = Math.max(1, number(slice.width)) / 2, halfHeight = Math.max(1, number(slice.height)) / 2;
+  const scale = Math.min(dx === 0 ? Infinity : halfWidth / Math.abs(dx), dy === 0 ? Infinity : halfHeight / Math.abs(dy));
+  return { x: cx + dx * scale, y: cy + dy * scale };
+}
 
 function picture(model: ArchitectureModel | null, added: string[] = []): string {
   if (!model) return '<p class="model-empty">No architecture diagram existed at this revision.</p>';
@@ -13,7 +23,14 @@ function picture(model: ArchitectureModel | null, added: string[] = []): string 
   const lines = model.edges.map(edge => {
     const from = slices.find(s => s.name === edge.from), to = slices.find(s => s.name === edge.to);
     if (!from || !to) return "";
-    const x1 = number(from.x + from.width / 2), y1 = number(from.y + from.height / 2), x2 = number(to.x + to.width / 2), y2 = number(to.y + to.height / 2);
+    const start = borderPoint(from, number(to.x + to.width / 2), number(to.y + to.height / 2));
+    const end = borderPoint(to, number(from.x + from.width / 2), number(from.y + from.height / 2));
+    if (!start || !end) return "";
+    const dx = end.x - start.x, dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 5) return "";
+    const gap = 2, ux = dx / length, uy = dy / length;
+    const x1 = start.x + ux * gap, y1 = start.y + uy * gap, x2 = end.x - ux * gap, y2 = end.y - uy * gap;
     const isAdded = added.includes(`association ${edge.key}`);
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${isAdded ? "#2e7d32" : "#667085"}" stroke-width="2" marker-end="url(#${isAdded ? "arch-arrow-added" : "arch-arrow"})"/>`;
   }).join("");

@@ -80,6 +80,17 @@ test("diff highlights added, removed and changed slices and arrows", () => {
   assert.deepEqual(diffArchitectureModel(null, before).added, ["slice domain"]);
 });
 
+test("arrows stop at the box borders so their heads stay visible", () => {
+  const xml = `<mxfile><diagram><mxGraphModel><root><object id="box-math" concept="math" label="math"><mxCell vertex="1"><mxGeometry x="0" y="0" width="140" height="50"/></mxCell></object><object id="box-util" concept="util" label="util"><mxCell vertex="1"><mxGeometry x="150" y="0" width="140" height="50"/></mxCell></object><object id="e" assoc="math->util"><mxCell edge="1" source="box-math" target="box-util"/></object></root></mxGraphModel></diagram></mxfile>`;
+  const after = diagramArchitectureModel(xml);
+  const html = architectureHtml({ base: "b", target: "t", basePresent: true, targetPresent: true, before: null, after, delta: { added: [], removed: [], changed: [] }, guardrail: { status: "passed", diagnostics: [], unused: [] }, diagramXml: xml });
+  const line = html.match(/<line x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"/);
+  assert.ok(line, "expected a rendered arrow line");
+  const [x1, x2] = [Number(line[1]), Number(line[3])];
+  assert.ok(x1 > 140, `arrow should start after the math box, got ${x1}`);
+  assert.ok(x2 < 150, `arrow should stop before the util box, got ${x2}`);
+});
+
 test("architecture report escapes diagram labels and states its guardrail", () => {
   const after = diagramArchitectureModel(drawing(["<script>"], []));
   const failed = architectureHtml({ base: "b", target: "t", basePresent: true, targetPresent: true, before: null, after, delta: diffArchitectureModel(null, after), guardrail: { status: "failed", diagnostics: ["<script>"], unused: ["a->b"] }, diagramXml: "" });
