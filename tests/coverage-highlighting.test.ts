@@ -30,12 +30,13 @@ test("highlights JSX with the TSX grammar while preserving text", () => {
 test("coverage source, diff, hits and gaps retain safe TypeScript syntax colors", () => {
   const source = 'const value: string = "<script>";';
   const context = { file: "src/example.ts", startLine: 1, endLine: 1, source };
+  const gapContext = { file: "src/example.ts", startLine: 1, endLine: 3, source: `function compute() {\n${source}\n}` };
   const report: CoverageReport = {
     schemaVersion: 1, collector: { name: "Supercov", version: "4.22.0" },
     run: { id: "run_1", exitCode: 0, command: ["npm", "test"], measuredAt: "now" },
     comparison: { base: "a", head: "b", projectPath: "", workingTree: true }, stale: false, sources: {},
     tests: [{ id: "1", name: "safe", file: "tests/example.ts", line: 1, source, change: "modified", outcome: "passed", attribution: "exact", diff: [{ kind: "removed", text: 'const old = "old";' }, { kind: "added", text: source }], changedHits: [{ file: "src/example.ts", line: 1 }] }],
-    changedLines: [{ file: "src/example.ts", line: 1, status: "covered", context }, { file: "src/example.ts", line: 2, status: "uncovered", context }], setups: [], deletedTests: [], limitations: [],
+    changedLines: [{ file: "src/example.ts", line: 1, status: "covered", context }, { file: "src/example.ts", line: 2, status: "uncovered", context: gapContext }], setups: [], deletedTests: [], limitations: [],
   };
 
   const html = coverageHtml(report);
@@ -48,4 +49,8 @@ test("coverage source, diff, hits and gaps retain safe TypeScript syntax colors"
   assert.match(html, /class="diff-removed"/);
   assert.match(html, /Show changed-code hits/);
   assert.match(html, /uncovered changed line/);
+  assert.match(html, /class="context-hit"/);
+  assert.match(html, /class="context-gap"/);
+  assert.match(html, /class="source-line" aria-hidden="true">2<\/span><span class="source-marker" aria-label="Uncovered changed line">\+/);
+  assert.ok((html.match(/class="function-context"/g) ?? []).length >= 2);
 });

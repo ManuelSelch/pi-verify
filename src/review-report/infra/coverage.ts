@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 type Location = { file: string; line: number };
-type Context = { file: string; startLine: number; endLine: number; source: string };
+export type Context = { file: string; startLine: number; endLine: number; source: string };
 export type CoverageTest = { id: string; name: string; file: string; line: number | null; source: string | null; change: string; diff: { kind: string; text: string }[]; outcome: string; attribution: string; changedHits: Location[] };
 export type CoverageReport = {
   schemaVersion: 1; collector: { name: string; version: string };
