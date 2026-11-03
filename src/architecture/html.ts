@@ -34,7 +34,7 @@ function picture(model: ArchitectureModel | null, added: string[] = []): string 
     const isAdded = added.includes(`association ${edge.key}`);
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${isAdded ? "#2e7d32" : "#667085"}" stroke-width="2" marker-end="url(#${isAdded ? "arch-arrow-added" : "arch-arrow"})"/>`;
   }).join("");
-  const nodes = slices.map(s => `<g><rect x="${number(s.x)}" y="${number(s.y)}" width="${Math.max(1, number(s.width))}" height="${Math.max(1, number(s.height))}" rx="6" fill="${added.includes(`slice ${s.name}`) ? "#e0f6e8" : "#ffffff"}" stroke="${added.includes(`slice ${s.name}`) ? "#2e7d32" : "#667085"}" stroke-width="2"/><text text-anchor="middle" x="${number(s.x + s.width / 2)}" y="${number(s.y + s.height / 2 + 5)}">${esc(s.label)}</text></g>`).join("");
+  const nodes = slices.map(s => `<g><rect x="${number(s.x)}" y="${number(s.y)}" width="${Math.max(1, number(s.width))}" height="${Math.max(1, number(s.height))}" rx="6" fill="${added.includes(`slice ${s.name}`) ? "#e0f6e8" : "#ffffff"}" stroke="${added.includes(`slice ${s.name}`) ? "#2e7d32" : "#667085"}" stroke-width="2"${s.placed === "auto" ? ' stroke-dasharray="5 3"' : ""}/><text text-anchor="middle" x="${number(s.x + s.width / 2)}" y="${number(s.y + s.height / 2 + 5)}">${esc(s.label)}</text></g>`).join("");
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Architecture diagram">${arrows}${lines}${nodes}</svg>`;
 }
 
@@ -43,9 +43,11 @@ export function architectureHtml(review: ArchitectureReview): string {
   const status = review.guardrail.status;
   const messages = review.guardrail.diagnostics.map(item => `<li>${esc(item)}</li>`).join("");
   const unused = review.guardrail.unused.length ? `<p class="model-note">Allowed but unused: ${esc(review.guardrail.unused.join(", "))}</p>` : "";
+  const staged = (review.after?.slices ?? []).filter(slice => slice.placed === "auto").map(slice => slice.name);
+  const awaiting = staged.length ? `<p class="model-note">Awaiting human placement: ${esc(staged.join(", "))}</p>` : "";
   const items = delta ? [...delta.removed.map(x => `− ${x}`), ...delta.changed.map(x => `~ ${x}`)] : [];
   const changes = delta ? (items.length ? `<ul>${items.map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : "") : "<p>Comparison unavailable: no verified base revision.</p>";
-  return `<div class="panel model-panel"><div class="panel-head"><h2>Architecture</h2>${status === "passed" ? '<span class="status-dot" role="img" aria-label="Architecture guardrail passed" title="Architecture guardrail passed"></span>' : `<span class="badge warning">Guardrail ${esc(status)}</span>`}</div>${messages ? `<ul>${messages}</ul>` : ""}${unused}
+  return `<div class="panel model-panel"><div class="panel-head"><h2>Architecture</h2>${status === "passed" ? '<span class="status-dot" role="img" aria-label="Architecture guardrail passed" title="Architecture guardrail passed"></span>' : `<span class="badge warning">Guardrail ${esc(status)}</span>`}</div>${messages ? `<ul>${messages}</ul>` : ""}${unused}${awaiting}
   <div class="model-controls"><input type="radio" id="arch-diff" name="arch-view" checked><label for="arch-diff">Changes</label><input type="radio" id="arch-before" name="arch-view"><label for="arch-before">Before</label><input type="radio" id="arch-after" name="arch-view"><label for="arch-after">After</label><div class="model-panes"><div class="model-diff">${picture(review.after, delta?.added)}${changes}</div><div class="model-before">${review.base ? picture(review.before) : '<p>Base revision unavailable.</p>'}</div><div class="model-after">${picture(review.after)}</div></div></div>
   </div>`;
 }

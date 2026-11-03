@@ -143,6 +143,14 @@ test("arrows stop at the box borders so their heads stay visible", () => {
   assert.ok(x2 < 150, `arrow should stop before the util box, got ${x2}`);
 });
 
+test("architecture report marks slices awaiting human placement", () => {
+  const xml = `<mxfile><diagram><mxGraphModel><root><object id="box-a" concept="a" label="a" placed="auto" autoAt="0,0"><mxCell vertex="1"><mxGeometry x="0" y="0" width="140" height="50"/></mxCell></object></root></mxGraphModel></diagram></mxfile>`;
+  const after = diagramArchitectureModel(xml);
+  const html = architectureHtml({ base: "b", target: "t", basePresent: false, targetPresent: true, before: null, after, delta: null, guardrail: { status: "passed", diagnostics: [], unused: [] }, diagramXml: xml });
+  assert.match(html, /Awaiting human placement: a/);
+  assert.match(html, /stroke-dasharray="5 3"/);
+});
+
 test("architecture report escapes diagram labels and states its guardrail", () => {
   const after = diagramArchitectureModel(drawing(["<script>"], []));
   const failed = architectureHtml({ base: "b", target: "t", basePresent: true, targetPresent: true, before: null, after, delta: diffArchitectureModel(null, after), guardrail: { status: "failed", diagnostics: ["<script>"], unused: ["a->b"] }, diagramXml: "" });
