@@ -8,13 +8,13 @@ npx pi-verify review
 npx pi-verify preview
 ```
 
-Collection selects the verified feature-branch creation base, just like review; use `--base REF` on both commands if it is unavailable or a different comparison is desired. Collection measures the current worktree at HEAD; review imports evidence only when its base, target, captured source/test snapshots and project configuration match the committed comparison. Stale or mismatched evidence makes review fail rather than silently reporting it as current. Failed tests produce a nonzero collection exit code and retain their outcome in the evidence. Review never runs tests.
+The separate coverage command is intentional: it executes tests, whereas `review` reads committed architecture diagrams directly without executing them. Collection selects the verified feature-branch creation base, just like review; use `--base REF` on both commands if it is unavailable or a different comparison is desired. Collection measures the current worktree at HEAD; review imports evidence only when its base, target, captured source/test snapshots and project configuration match the committed comparison. Stale or mismatched evidence makes review fail rather than silently reporting it as current. Failed tests produce a nonzero collection exit code and retain their outcome in the evidence. Review never runs tests.
 
-By default, the collector discovers Git-tracked TypeScript sources under `src/` and test files in test directories or named `*.test.ts`, `*.spec.ts`, and TSX equivalents. Discovery is a convenience, not proof of complete scope. To control it, repeat `--source` and `--test` for each project-relative file; providing either option replaces discovery for that category. For a monorepo, use `--root path/to/package` with paths relative to that package. Git-ignored and untracked files are not automatically discovered.
+By default, the collector recursively discovers Git-tracked TypeScript source files under `src/` and TypeScript test files under `tests/`. Declaration files are excluded, as are recognized test files within source directories. Discovery is a convenience, not proof of complete scope. To select other directories, repeat `--source` and `--test` with project-relative directory paths; providing either option replaces that category's default. Individual files are not accepted. For a monorepo, use `--root path/to/package` with paths relative to that package. Git-ignored and untracked files are not automatically discovered.
 
 ```bash
 npx pi-verify collect-coverage --root frontend --base origin/main \
-  --source src/pricing.ts --test tests/pricing.test.ts
+  --source src --test tests
 npx pi-verify review --base origin/main
 ```
 

@@ -45,6 +45,14 @@ test("model report escapes diagram labels and explains an absent base", () => {
   assert.match(html, /Guardrail failed/);
 });
 
+test("unchanged concepts are neutral and additions are highlighted green", () => {
+  const after = diagramModel(diagram);
+  const before = { ...after, concepts: after.concepts.filter(c => c.name === "Owner"), associations: [] };
+  const html = conceptualHtml({ base: "base", target: "target", basePresent: true, targetPresent: true, before, after, delta: diffModel(before, after), guardrail: { status: "unavailable", diagnostics: [] }, diagramXml: diagram });
+  assert.match(html, /fill="#ffffff" stroke="#667085"/);
+  assert.match(html, /fill="#e0f6e8" stroke="#2e7d32"/);
+});
+
 test("repository hand-drawn model stays in sync with TypeScript", async () => {
   const code = await readFile("src/review-report/domain/model.ts", "utf8");
   const drawing = await readFile("docs/conceptual-model.drawio", "utf8");

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { collectGitScope, type GitScope } from "./git-scope.js";
@@ -10,7 +10,7 @@ import { writeReportBundle } from "./report.js";
 import type { ReviewReport, ReviewSection } from "./review-report/domain/model.js";
 
 const exec = promisify(execFile);
-const usage = `Usage: pi-verify collect-coverage [--base REF] [--root DIR] [--source FILE]... [--test FILE]... [--output DIR]
+const usage = `Usage: pi-verify collect-coverage [--base REF] [--root DIR] [--source DIR]... [--test DIR]... [--output DIR]
        pi-verify review [--base REF] [--target REF] [--output DIR] [--coverage-report FILE]
        pi-verify preview [--output DIR]`;
 
@@ -54,9 +54,23 @@ async function collectCoverage(args: string[]) {
   const files = (await exec("git", ["ls-files", "-z", "--", "."], { cwd: root, maxBuffer: 10 * 1024 * 1024 })).stdout.split("\0").filter(Boolean);
   const isTest = (file: string) => /(^|\/)(__tests__|tests?|specs?)\//i.test(file) || /\.(test|spec)\.[cm]?tsx?$/i.test(file);
   const typescript = (file: string) => /\.[cm]?tsx?$/i.test(file) && !/\.d\.[cm]?ts$/i.test(file);
-  const sources = values.get("--source") ?? files.filter(file => /^src\//.test(file) && typescript(file) && !isTest(file));
-  const tests = values.get("--test") ?? files.filter(file => typescript(file) && isTest(file));
-  if (!sources.length || !tests.length) throw new Error("No TypeScript source or test files found. Specify --source and --test explicitly (repeat for multiple files).");
+  const projectRoot = await realpath(root);
+  const directories = async (names: string[]) => Promise.all(names.map(async name => {
+    if (path.isAbsolute(name) || name.split(/[\\/]/).includes("..")) throw new Error(`Expected a project-relative directory: ${name}`);
+    const directory = path.resolve(root, name);
+    let resolved: string;
+    try { resolved = await realpath(directory); }
+    catch { throw new Error(`Directory not found: ${name}`); }
+    if (!(await stat(resolved)).isDirectory()) throw new Error(`Not a directory: ${name}`);
+    const relative = path.relative(projectRoot, resolved);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error(`Expected a directory inside the project: ${name}`);
+    return relative.split(path.sep).join("/") + "/";
+  }));
+  const sourceDirs = await directories(values.get("--source") ?? ["src"]);
+  const testDirs = await directories(values.get("--test") ?? ["tests"]);
+  const sources = files.filter(file => sourceDirs.some(dir => file.startsWith(dir)) && typescript(file) && !isTest(file));
+  const tests = files.filter(file => testDirs.some(dir => file.startsWith(dir)) && typescript(file));
+  if (!sources.length || !tests.length) throw new Error("No tracked TypeScript source or test files found in the selected directories.");
   const output = path.resolve(values.get("--output")?.[0] ?? path.join(scope.repository, ".pi-verify", "coverage"));
   await mkdir(output, { recursive: true });
   await rm(path.join(output, "report.json"), { force: true });

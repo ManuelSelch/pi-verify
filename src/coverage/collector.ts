@@ -118,7 +118,7 @@ export async function measure(options: Options): Promise<Measurement> {
     const tracked = (await git(root, "ls-tree", "--name-only", base, "--", file)).trim();
     changed[file] = tracked
       ? changedLineNumbers(await git(root, "diff", "--no-ext-diff", "--no-textconv", "--unified=0", base, "--", file))
-      : source.split("\n").map((_, index) => index + 1);
+      : (source ? source.replace(/\n$/, "").split("\n").map((_, index) => index + 1) : []);
   }
   const idFile = path.join(outputDirectory, "run-id.txt");
   await rm(idFile, { force: true });

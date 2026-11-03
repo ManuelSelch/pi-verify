@@ -13,10 +13,10 @@ function picture(model: Model | null, added: string[] = []): string {
     const from = boxes.find(c => c.name === a.from), to = boxes.find(c => c.name === a.to);
     if (!from || !to) return "";
     const x1 = number(from.x + from.width / 2), y1 = number(from.y + from.height / 2), x2 = number(to.x + to.width / 2), y2 = number(to.y + to.height / 2);
-    const color = added.includes(`association ${a.key}`) ? "#2e7d32" : "#637a6e";
+    const color = added.includes(`association ${a.key}`) ? "#2e7d32" : "#667085";
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2"/><text x="${x1 * .25 + x2 * .75}" y="${y1 * .25 + y2 * .75 - 6}">${esc(a.toMarker)}</text><text x="${x1 * .75 + x2 * .25}" y="${y1 * .75 + y2 * .25 - 6}">${esc(a.fromMarker)}</text>`;
   }).join("");
-  const nodes = boxes.map(c => `<g><rect x="${number(c.x)}" y="${number(c.y)}" width="${Math.max(1, number(c.width))}" height="${Math.max(1, number(c.height))}" rx="6" fill="${added.includes(`concept ${c.name}`) ? "#e0f6e8" : "#f0f8f4"}" stroke="${added.includes(`concept ${c.name}`) ? "#2e7d32" : "#709687"}" stroke-width="2"/><text text-anchor="middle" x="${number(c.x + c.width / 2)}" y="${number(c.y + c.height / 2 + 5)}">${esc(c.label)}</text></g>`).join("");
+  const nodes = boxes.map(c => `<g><rect x="${number(c.x)}" y="${number(c.y)}" width="${Math.max(1, number(c.width))}" height="${Math.max(1, number(c.height))}" rx="6" fill="${added.includes(`concept ${c.name}`) ? "#e0f6e8" : "#ffffff"}" stroke="${added.includes(`concept ${c.name}`) ? "#2e7d32" : "#667085"}" stroke-width="2"/><text text-anchor="middle" x="${number(c.x + c.width / 2)}" y="${number(c.y + c.height / 2 + 5)}">${esc(c.label)}</text></g>`).join("");
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Conceptual model diagram">${lines}${nodes}</svg>`;
 }
 
