@@ -5,6 +5,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { collectGitScope, type GitScope } from "./git-scope.js";
 import { collectArchitecture } from "./architecture/collect.js";
+import { checkWorkingTree } from "./architecture/check.js";
+import { configurationPath, parseConfiguration, type PiVerifyConfiguration } from "./config.js";
 import { importCoverage, type CoverageReport } from "./review-report/infra/coverage.js";
 import { writeReportBundle } from "./report.js";
 import type { ReviewReport, ReviewSection } from "./review-report/domain/model.js";
@@ -12,7 +14,8 @@ import type { ReviewReport, ReviewSection } from "./review-report/domain/model.j
 const exec = promisify(execFile);
 const usage = `Usage: pi-verify collect-coverage [--base REF] [--root DIR] [--source DIR]... [--test DIR]... [--output DIR]
        pi-verify review [--base REF] [--target REF] [--output DIR] [--coverage-report FILE]
-       pi-verify preview [--output DIR]`;
+       pi-verify preview [--output DIR]
+       pi-verify architecture`;
 
 function options(args: string[], allowed: string[]): Record<string, string> {
   const result: Record<string, string> = {};
@@ -35,6 +38,21 @@ async function comparison(scope: GitScope, baseOption?: string, targetOption?: s
     catch { throw new Error("Branch creation base is not an ancestor of target; specify --base REF."); }
   }
   return { base, target, tree: await git("rev-parse", `${target}^{tree}`) };
+}
+
+async function checkArchitectureOnWorkingTree() {
+  let root: string;
+  try { root = (await exec("git", ["rev-parse", "--show-toplevel"])).stdout.trim(); }
+  catch { root = process.cwd(); }
+  let json: string | null = null;
+  try { json = await readFile(path.join(root, configurationPath), "utf8"); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  const configuration: PiVerifyConfiguration = parseConfiguration(json);
+  if (!configuration.architecture) throw new Error(`Architecture is not configured in ${configurationPath}.`);
+  const { errors, unused } = checkWorkingTree(root, configuration.architecture);
+  if (unused.length) console.log(`Allowed but unused: ${unused.join(", ")}`);
+  if (errors.length) throw new Error(`Architecture check failed:\n${errors.map(error => `- ${error}`).join("\n")}`);
+  console.log("Architecture: OK");
 }
 
 async function collectCoverage(args: string[]) {
@@ -112,6 +130,7 @@ async function main() {
     console.log(report);
     return;
   }
+  if (command === "architecture") { if (args.length) throw new Error(`Invalid option: ${args[0]}\n${usage}`); await checkArchitectureOnWorkingTree(); return; }
   if (command !== "review") throw new Error(`Unknown command: ${command}\n${usage}`);
   const opts = options(args, ["--base", "--target", "--output", "--coverage-report"]);
   const scope = await collectGitScope(process.cwd());

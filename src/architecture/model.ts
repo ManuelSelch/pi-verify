@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
@@ -27,6 +28,20 @@ const JS_REPLACEMENTS: Record<string, string[]> = { ".js": [".ts", ".tsx"], ".js
 export function isArchitectureFile(file: string): boolean {
   const normalized = posix(file);
   return SUPPORTED.test(normalized) && !DEFAULT_EXCLUDE.some(pattern => pattern.test(normalized));
+}
+
+/** Read a working-tree folder as the in-memory source map the model consumes. */
+export function readArchitectureSource(directory: string): ArchitectureSource {
+  const files = new Map<string, string>();
+  const walk = (dir: string, prefix: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), relative);
+      else if (isArchitectureFile(relative)) files.set(relative, readFileSync(path.join(dir, entry.name), "utf8"));
+    }
+  };
+  if (existsSync(directory)) walk(directory, "");
+  return { files };
 }
 
 function resolveRelative(fromFile: string, specifier: string, paths: Set<string>): string | null {

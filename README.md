@@ -11,7 +11,13 @@ npx @manuelselch/pi-verify review
 npx @manuelselch/pi-verify preview
 ```
 
-Alternatively, install `@manuelselch/pi-verify` as a development dependency and run `npx pi-verify review` and `npx pi-verify preview`. Node.js 20 or later is required.
+To guard a project's module architecture against a committed draw.io diagram, add `.pi/pi-verify.json` and `docs/architecture.drawio`, then run the working-tree check in `npm test` or CI:
+
+```bash
+npx @manuelselch/pi-verify architecture
+```
+
+Alternatively, install `@manuelselch/pi-verify` as a development dependency and run `npx pi-verify review`, `npx pi-verify preview` and `npx pi-verify architecture`. Node.js 20 or later is required.
 
 The review compares committed revisions, excluding working-tree changes. If the branch-creation base cannot be determined, provide `--base REF`. Reports are written to `.pi-verify/`; consider adding it to your project's `.gitignore`. Review does not run tests automatically. To collect coverage first, run `npx @manuelselch/pi-verify collect-coverage`; see the [coverage guide](docs/coverage.md) for requirements and scope.
 

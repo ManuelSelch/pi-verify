@@ -57,7 +57,13 @@ Pi loads `src/extension.ts` directly through its TypeScript loader. A build is o
 
 ## Standalone CLI
 
-The package provides `pi-verify review` and `pi-verify preview` independently of Pi. Install it in your project with `npm install --save-dev @manuelselch/pi-verify`, then use `npx pi-verify review` and `npx pi-verify preview` (or add npm script aliases). Without installing, use `npx @manuelselch/pi-verify review` and `npx @manuelselch/pi-verify preview`. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/manuelselch-pi-verify-0.1.0.tgz`.
+The package provides `pi-verify review`, `pi-verify preview` and `pi-verify architecture` independently of Pi. Install it in your project with `npm install --save-dev @manuelselch/pi-verify`, then use `npx pi-verify review`, `npx pi-verify preview` and `npx pi-verify architecture` (or add npm script aliases). Without installing, use the same commands through `npx @manuelselch/pi-verify`. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/manuelselch-pi-verify-0.1.2.tgz`.
+
+`architecture` is the working-tree guardrail and the CI entry point: it reads `.pi/pi-verify.json`, checks the current files (not committed revisions) against `docs/architecture.drawio`, prints every problem and exits non-zero on failure. It takes no arguments, so it fits directly into `npm test` or a CI step:
+
+```bash
+npx pi-verify architecture
+```
 
 `review` compares committed revisions; it does not run tests or collect coverage. By default it uses the verified feature-branch creation reflog base and HEAD. When the base is unavailable or not an ancestor, specify `--base REF`; `--target REF` optionally selects another commit. The report records staged, unstaged and untracked files excluded from the comparison. Missing diagrams and uncollected analysis are marked unavailable, not passed.
 
@@ -95,6 +101,8 @@ The file is read at the compared revisions, not from the working tree.
 ## Architecture comparison
 
 The architecture guardrail checks module-level structure: the immediate subfolders of `root` are the slices, and relative TypeScript imports between them are the dependencies. It is optional; without an `architecture` key in [.pi/pi-verify.json](#configuration) nothing is collected.
+
+`npx pi-verify architecture` runs the check against the working tree and is the usual way to adopt it in another project or CI. `review` additionally compares committed revisions and renders the HTML panel; `/verify` collects the same comparison automatically.
 
 Commit an uncompressed, single-page draw.io XML diagram with one box per slice and one directed arrow per allowed dependency. Boxes carry `concept="domain"` with the box label equal to the folder name; arrows carry `assoc="domain->infra"`, and the two ends name the arrow's direction. Attributes can be edited in draw.io's Edit Data dialog. See [the example drawing](../docs/architecture.drawio) for the XML structure.
 
