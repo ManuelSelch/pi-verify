@@ -1,8 +1,20 @@
 {
-  "name": "pi-verify",
+  "name": "@manuelselch/pi-verify",
   "version": "0.1.0",
   "description": "Composable evidence collection and verification reports for Pi workflows",
   "type": "module",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ManuelSelch/pi-verify.git"
+  },
+  "homepage": "https://github.com/ManuelSelch/pi-verify#readme",
+  "bugs": {
+    "url": "https://github.com/ManuelSelch/pi-verify/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
@@ -19,7 +31,10 @@
     "@types/node": "^22.0.0"
   },
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "verification",
+    "review",
+    "coverage"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

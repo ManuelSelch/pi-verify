@@ -59,7 +59,7 @@ Pi loads `src/extension.ts` directly through its TypeScript loader. A build is o
 
 ## Standalone CLI
 
-The package provides `pi-verify review` and `pi-verify preview` independently of Pi. Install a packed or published package in your project, or install it globally. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/pi-verify-0.1.0.tgz`. Run the installed command using `npx pi-verify review` and `npx pi-verify preview` (or add npm script aliases).
+The package provides `pi-verify review` and `pi-verify preview` independently of Pi. Once published, install it in your project with `npm install --save-dev @manuelselch/pi-verify`, then use `npx pi-verify review` and `npx pi-verify preview` (or add npm script aliases). Without installing, use `npx @manuelselch/pi-verify review` and `npx @manuelselch/pi-verify preview`. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/manuelselch-pi-verify-0.1.0.tgz`.
 
 `review` compares committed revisions; it does not run tests or collect coverage. By default it uses the verified feature-branch creation reflog base and HEAD. When the base is unavailable or not an ancestor, specify `--base REF`; `--target REF` optionally selects another commit. The report records staged, unstaged and untracked files excluded from the comparison. Missing diagrams and uncollected analysis are marked unavailable, not passed.
 
