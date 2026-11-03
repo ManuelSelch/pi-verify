@@ -59,11 +59,13 @@ Pi loads `src/extension.ts` directly through its TypeScript loader. A build is o
 
 The package provides `pi-verify review`, `pi-verify preview` and `pi-verify architecture` independently of Pi. Install it in your project with `npm install --save-dev @manuelselch/pi-verify`, then use `npx pi-verify review`, `npx pi-verify preview` and `npx pi-verify architecture` (or add npm script aliases). Without installing, use the same commands through `npx @manuelselch/pi-verify`. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/manuelselch-pi-verify-0.1.2.tgz`.
 
-`architecture` is the working-tree guardrail and the CI entry point: it reads `.pi/pi-verify.json`, checks the current files (not committed revisions) against `docs/architecture.drawio`, prints every problem and exits non-zero on failure. It takes no arguments, so it fits directly into `npm test` or a CI step:
+`architecture` is the working-tree guardrail and the CI entry point: it reads `.pi/pi-verify.json`, checks the current files (not committed revisions) against `docs/architecture.drawio`, prints every problem and exits non-zero on failure. It takes no other arguments, so it fits directly into `npm test` or a CI step:
 
 ```bash
 npx pi-verify architecture
 ```
+
+`npx pi-verify architecture --write` rebuilds the diagram from the code instead of only checking it. Existing boxes keep the position, size and style a human gave them; removed slices and arrows are dropped; new slices wait in a staging lane marked `placed="auto"` and are listed as `Awaiting human placement` until someone moves them in draw.io, after which the next `--write` clears the marker. With `"transitive": true` it writes the transitive reduction, so only the essential arrows are drawn. The command then runs the normal check and prints its result. This is the intended agent workflow: the agent refreshes the diagram with the feature, and the human approves the resulting diff and lays out any staged box.
 
 `review` compares committed revisions; it does not run tests or collect coverage. By default it uses the verified feature-branch creation reflog base and HEAD. When the base is unavailable or not an ancestor, specify `--base REF`; `--target REF` optionally selects another commit. The report records staged, unstaged and untracked files excluded from the comparison. Missing diagrams and uncollected analysis are marked unavailable, not passed.
 

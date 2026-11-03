@@ -3,7 +3,7 @@ import path from "node:path";
 import ts from "typescript";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
-export type ArchitectureSlice = { name: string; label: string; x: number; y: number; width: number; height: number };
+export type ArchitectureSlice = { name: string; label: string; x: number; y: number; width: number; height: number; placed?: string };
 export type ArchitectureEdge = { key: string; from: string; to: string };
 export type ArchitectureModel = { slices: ArchitectureSlice[]; edges: ArchitectureEdge[]; errors: string[] };
 export type ArchitectureAlias = { pattern: string; targets: string[] };
@@ -172,7 +172,7 @@ export function diagramArchitectureModel(xml: string): ArchitectureModel {
     const label = String(cell.label ?? cell.value ?? name);
     if (label !== name) errors.push(`slice ${name} label does not match its folder name`);
     const geometry = cell.mxGeometry ?? {};
-    slices.push({ name, label, x: Number(geometry.x ?? 0), y: Number(geometry.y ?? 0), width: Number(geometry.width ?? 140), height: Number(geometry.height ?? 50) });
+    slices.push({ name, label, x: Number(geometry.x ?? 0), y: Number(geometry.y ?? 0), width: Number(geometry.width ?? 140), height: Number(geometry.height ?? 50), ...(cell.placed ? { placed: String(cell.placed) } : {}) });
   }
 
   const edges: ArchitectureEdge[] = [];

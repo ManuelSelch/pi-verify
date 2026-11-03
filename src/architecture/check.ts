@@ -6,7 +6,7 @@ import { aliasesFromConfig, checkArchitecture, codeArchitectureModel, diagramArc
 export type WorkingTreeCheck = { errors: string[]; unused: string[] };
 
 /** tsconfig `compilerOptions.paths` next to the project, when present and valid. */
-function workingTreeAliases(base: string): { aliases: ArchitectureAlias[]; aliasBase: string } | null {
+export function workingTreeAliases(base: string): { aliases: ArchitectureAlias[]; aliasBase: string } | null {
   const file = path.join(base, "tsconfig.json");
   if (!existsSync(file)) return null;
   try { return aliasesFromConfig(file, readFileSync(file, "utf8"), base); }
