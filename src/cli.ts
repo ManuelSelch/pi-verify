@@ -69,8 +69,8 @@ async function main() {
     comparison: { status: "available", base, target, targetTree: tree, method: opts["--base"] ? "explicit" : "branch-creation-reflog", includesUncommitted: false, excludedWorkingTree: { staged: scope.staged, unstaged: scope.unstaged, untracked: scope.untracked }, limitations: ["Working tree changes are excluded."] },
     sections: {
       overview: section, changes: section, complexity: section, evidence: section,
-      testsCoverage: coverage ? { ...section, status: "available", source: "coverage-collector", revision: target, scope: "Imported per-test coverage", limitations: coverage.limitations } : section,
-      architecture: hasModel ? { ...section, status: "available", source: "git", revision: target, scope: "Committed conceptual diagram comparison", limitations: model.guardrail.diagnostics } : { ...section, scope: "Conceptual model", limitations: ["No supported committed conceptual model was collected."] },
+      testsCoverage: coverage ? { ...section, status: "available", source: "coverage-collector", revision: target, scope: "Imported per-test coverage", limitations: coverage.limitations } : { ...section, scope: "Per-test coverage", limitations: ["No coverage report supplied."] },
+      architecture: hasModel ? { ...section, status: "available", source: "git", revision: target, scope: "Committed conceptual diagram comparison", limitations: model.guardrail.diagnostics } : { ...section, scope: "Conceptual model", limitations: ["No supported conceptual diagram found."] },
     },
   };
   const output = path.resolve(opts["--output"] ?? path.join(scope.repository, ".pi-verify"));
