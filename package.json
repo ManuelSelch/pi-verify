@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "check": "npm run build && npm test"
+  },
+  "bin": {
+    "pi-verify": "./dist/src/cli.js"
   },
   "engines": {
     "node": ">=20"
@@ -32,6 +36,7 @@
   },
   "files": [
     "src",
+    "dist/src",
     "README.md",
     "REQUIREMENTS.md"
   ],

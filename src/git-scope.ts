@@ -23,7 +23,8 @@ export type GitScope = {
 
 async function git(cwd: string, args: string[], allowFailure = false): Promise<string> {
   try {
-    return (await execFileAsync("git", args, { cwd, maxBuffer: 10 * 1024 * 1024 })).stdout.trim();
+    const output = (await execFileAsync("git", args, { cwd, maxBuffer: 10 * 1024 * 1024 })).stdout;
+    return args.includes("-z") ? output : output.trim();
   } catch (error) {
     if (allowFailure) return "";
     const failure = error as { stderr?: string };
@@ -55,7 +56,12 @@ async function fingerprint(cwd: string): Promise<string> {
   const hash = createHash("sha256");
   for (const file of files) {
     hash.update(file).update("\0");
-    hash.update(await readFile(path.join(cwd, file))).update("\0");
+    try { hash.update(await readFile(path.join(cwd, file))); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      hash.update("<deleted>");
+    }
+    hash.update("\0");
   }
   return hash.digest("hex");
 }

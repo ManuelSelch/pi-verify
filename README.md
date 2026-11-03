@@ -57,6 +57,16 @@ pi install ./pi-verify
 
 Pi loads `src/extension.ts` directly through its TypeScript loader. A build is only required for this repository's compiled tests, not for reloading the installed package.
 
+## Standalone CLI
+
+The package provides `pi-verify review` and `pi-verify preview` independently of Pi. Install a packed or published package in your project, or install it globally. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/pi-verify-0.1.0.tgz`. Run the installed command using `npx pi-verify review` and `npx pi-verify preview` (or add npm script aliases).
+
+`review` compares committed revisions; it does not run tests or collect coverage. By default it uses the verified feature-branch creation reflog base and HEAD. When the base is unavailable or not an ancestor, specify `--base REF`; `--target REF` optionally selects another commit. The report records staged, unstaged and untracked files excluded from the comparison. Missing diagrams and uncollected analysis are marked unavailable, not passed.
+
+Reports are written to `.pi-verify/` at the Git root. Add that directory to the project's ignore rules if generated files should stay untracked. `--output DIR` selects another bundle directory, relative to the current directory. The last generated report's location is stored in `.pi-verify/latest-report.txt`; `preview` opens it as a local HTML file using the system default application. `preview --output DIR` opens a specific bundle instead. Copy the whole bundle to preserve artifact links.
+
+Optionally supply `--coverage-report FILE` to import previously collected compatible Supercov evidence; this never runs measurement. Coverage collection remains a separate [spike](spikes/supercov/README.md), with its documented setup and limitations. Invalid or mismatched supplied evidence causes the command to fail. Run `pi-verify --help` for the command options.
+
 ## Review report foundations
 
 New JSON reports produced by `verify_finish` include a separately versioned `review` object. Its comparison uses the feature branch's creation reflog entry as the base and committed HEAD as the target; it records the target Git tree ID and lists staged, unstaged, and untracked files as excluded. If the creation base cannot be verified as an ancestor of HEAD, the review comparison is unavailable rather than falling back to another base. This is separate from the existing verification report's baseline detection.
