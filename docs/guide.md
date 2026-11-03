@@ -102,7 +102,7 @@ The file is read at the compared revisions, not from the working tree.
 
 The architecture guardrail checks module-level structure: the immediate subfolders of `root` are the slices, and relative TypeScript imports between them are the dependencies. It is optional; without an `architecture` key in [.pi/pi-verify.json](#configuration) nothing is collected.
 
-`npx pi-verify architecture` runs the check against the working tree and is the usual way to adopt it in another project or CI. `review` additionally compares committed revisions and renders the HTML panel; `/verify` collects the same comparison automatically.
+`npx pi-verify architecture` runs the check against the working tree and is the usual way to adopt it in another project or CI. It resolves the nearest `.pi/pi-verify.json` from the working directory up to the Git repository root, and resolves `diagram` and `root` relative to that directory — so a package inside a monorepo keeps its own configuration and the check runs with the package as the working directory. `review` additionally compares committed revisions and renders the HTML panel; it reads the repository-root configuration. `/verify` collects the same comparison automatically.
 
 Commit an uncompressed, single-page draw.io XML diagram with one box per slice and one directed arrow per allowed dependency. Boxes carry `concept="domain"` with the box label equal to the folder name; arrows carry `assoc="domain->infra"`, and the two ends name the arrow's direction. Attributes can be edited in draw.io's Edit Data dialog. See [the example drawing](../docs/architecture.drawio) for the XML structure.
 

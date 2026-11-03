@@ -6,9 +6,9 @@ import { checkArchitecture, codeArchitectureModel, diagramArchitectureModel, rea
 export type WorkingTreeCheck = { errors: string[]; unused: string[] };
 
 /** Check the working tree, not committed revisions, against the configured diagram. */
-export function checkWorkingTree(repository: string, configuration: ArchitectureConfiguration): WorkingTreeCheck {
-  const code = codeArchitectureModel(readArchitectureSource(path.join(repository, configuration.root)));
-  const diagramPath = path.join(repository, configuration.diagram);
+export function checkWorkingTree(base: string, configuration: ArchitectureConfiguration): WorkingTreeCheck {
+  const code = codeArchitectureModel(readArchitectureSource(path.join(base, configuration.root)));
+  const diagramPath = path.join(base, configuration.diagram);
   if (!existsSync(diagramPath)) throw new Error(`Architecture diagram not found: ${configuration.diagram}`);
   const diagram = diagramArchitectureModel(readFileSync(diagramPath, "utf8"));
   return { errors: checkArchitecture(code, diagram, { strict: configuration.strict }), unused: unusedEdges(code, diagram) };

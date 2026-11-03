@@ -81,3 +81,19 @@ test("architecture explains when it is not configured", () => {
     assert.match(result.stderr, /not configured/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("architecture finds a package-local configuration inside a larger repository", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "pi-verify-nested-"));
+  try {
+    execFileSync("git", ["init"], { cwd: root, stdio: "pipe" });
+    const write = (file: string, content: string) => { const destination = path.join(root, "frontend", file); mkdirSync(path.dirname(destination), { recursive: true }); writeFileSync(destination, content); };
+    write(".pi/pi-verify.json", JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src" } }));
+    write("docs/architecture.drawio", architectureDrawing(["domain", "infra"], ["domain->infra"]));
+    write("src/domain/model.ts", `import { table } from "../infra/db"; export const owners = table("owners");`);
+    write("src/infra/db.ts", `export function table(name: string) { return name; }`);
+    const packageDirectory = path.join(root, "frontend");
+    const result = spawnSync(process.execPath, [cli, "architecture"], { cwd: packageDirectory, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Architecture: OK/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
