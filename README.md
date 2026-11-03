@@ -17,7 +17,7 @@ The review compares committed revisions, excluding working-tree changes. If the 
 
 ## Pi integration
 
-The Pi extension provides `/verify` and evidence-collection tools. For local development, run `npm install` and start Pi with `pi -e ./` from this checkout. See the [reference guide](docs/guide.md#slice-3-minimal-pi-package-and-verify) for installation and behavior.
+The Pi extension provides `/verify` and evidence-collection tools. For local development, run `npm install` and start Pi with `pi -e ./` from this checkout. See the [reference guide](docs/guide.md#pi-package-and-verify) for installation and behavior.
 
 ## Documentation
 

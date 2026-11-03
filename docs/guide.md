@@ -2,9 +2,7 @@
 
 Composable evidence collection and verification reports for Pi workflows.
 
-## Implemented slices
-
-### Slice 1: Agent Audits backend spike
+## Agent Audits backend
 
 `src/agent-audits.ts` runs the installed `agent-audits` CLI in an isolated run directory while explicitly executing evidence commands in a source repository:
 
@@ -23,7 +21,7 @@ const report = await audit.report();
 
 The source repository does not receive `.agent-audits`; the run directory does. The adapter checks the installed executable and records real command output and exit codes. It intentionally does not install dependencies or claim that a failed gate passed.
 
-### Slice 2: report model and renderer
+## Report model and renderer
 
 `src/report.ts` produces versioned JSON and Markdown. It explicitly separates:
 
@@ -34,9 +32,9 @@ The source repository does not receive `.agent-audits`; the run directory does. 
 - skipped checks and limitations;
 - review provenance.
 
-Test entries are supplied by the caller in this slice. The renderer does not invent test names from a passing suite. Framework-specific test-result parsing and Git test inventory extraction are later work.
+Test entries are supplied by the caller. The renderer does not invent test names from a passing suite; framework-specific test-result parsing and Git test inventory extraction are not provided.
 
-### Slice 3: minimal Pi package and `/verify`
+## Pi package and `/verify`
 
 `src/extension.ts` registers `/verify`. The command sends a focused workflow prompt to the current Pi session; it does not require `/todo`, `/worktree`, planning, or cleanup. It tells the agent to use the verification tools, collect real evidence, list changed tests separately from executed tests, and avoid destructive lifecycle actions.
 
