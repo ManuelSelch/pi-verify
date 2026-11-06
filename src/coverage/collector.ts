@@ -5,7 +5,8 @@ import { promisify } from "node:util";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { changedLineNumbers, diffLines, functionContext, testDefinitions } from "./analysis.js";
-import type { ChangedLine, Location, Report, TestEvidence } from "./model.js";
+import type { ChangedLine, Report, TestEvidence } from "./model.js";
+import { collectLineEvidence, collectTestEvidence, type Envelope, type LineEvidence, type RawTest } from "./infra/supercov-evidence.js";
 
 const exec = promisify(execFile);
 const binary = path.resolve(path.dirname(createRequire(import.meta.url).resolve("supercov/register")), "../../bin/supercov.js");
@@ -17,23 +18,6 @@ export interface Options {
   testFiles: string[];
   outputDirectory: string;
 }
-interface RawTest {
-  id: string;
-  name: string;
-  file: string;
-  outcome: string;
-  role: string;
-  attribution: string;
-  lines: Location[];
-  totals: { lines: number };
-}
-interface Envelope {
-  schemaVersion: number;
-  ok: boolean;
-  data: Record<string, unknown>;
-  pagination?: { hasMore: boolean; nextOffset: number | null };
-}
-interface LineEvidence { totalAnchored: number; covered: boolean; tests: { id: string }[]; limitations: unknown[] }
 export interface Measurement {
   options: Options;
   base: string;
@@ -87,16 +71,6 @@ async function baseSource(root: string, revision: string, file: string): Promise
   if (!listed.trim()) return "";
   return git(root, "show", `${revision}:./${file}`);
 }
-function rawTest(value: unknown): RawTest {
-  if (object(value) && value.file === undefined && (value.role === "background" || object(value.provenance) && value.provenance.runner === "command")) value = { ...value, file: "" };
-  if (!object(value) || !["id", "name", "file", "outcome", "role", "attribution"].every(key => typeof value[key] === "string") || !Array.isArray(value.lines) || !object(value.totals) || typeof value.totals.lines !== "number")
-    throw new Error(`Supercov individual-test response is missing identity, outcome, role or coverage: ${JSON.stringify(value)}`);
-  for (const line of value.lines)
-    if (!object(line) || typeof line.file !== "string" || !Number.isInteger(line.line)) throw new Error("Invalid source location");
-  if (value.lines.length !== value.totals.lines) throw new Error("Supercov test coverage was truncated");
-  return value as unknown as RawTest;
-}
-
 export async function measure(options: Options): Promise<Measurement> {
   const root = path.resolve(options.root);
   const outputDirectory = path.resolve(options.outputDirectory);
@@ -148,65 +122,9 @@ export async function measure(options: Options): Promise<Measurement> {
   if (summary.testExitCode !== exitCode) throw new Error("Collector and measured test exit codes disagree");
   const version = (await exec(binary, ["--version"], { timeout: 10000 })).stdout;
   if (!version.startsWith("supercov 4.22.0 ")) throw new Error("Coverage collection expects pinned Supercov 4.22.0");
-  const entries: unknown[] = [];
-  let offset = 0;
-  // An empty fragment is Supercov's list-all-tests query; follow pagination explicitly.
-  while (true) {
-    const page = await query(root, ["runs", runId, "test", "", "--limit", "0", "--offset", String(offset), "--json"]);
-    if (!Array.isArray(page.data.tests)) throw new Error("Supercov test inventory missing");
-    entries.push(...page.data.tests);
-    if (!page.pagination?.hasMore) break;
-    const next = page.pagination.nextOffset;
-    if (next === null || next <= offset) throw new Error("Non-progressing test pagination");
-    offset = next;
-  }
-  const rawTests: RawTest[] = [];
-  for (const entry of entries) {
-    if (!object(entry) || typeof entry.id !== "string") throw new Error("Invalid test inventory entry");
-    let offset = 0;
-    let first: Record<string, unknown> | undefined;
-    const lines = new Map<string, Location>();
-    while (true) {
-      const page = await query(root, ["runs", runId, "test", entry.id, "--limit", "0", "--offset", String(offset), "--json"]);
-      if (!Array.isArray(page.data.tests) || page.data.tests.length !== 1 || !object(page.data.tests[0])) throw new Error("Individual test identity is ambiguous");
-      const item = page.data.tests[0];
-      if (item.id !== entry.id || !Array.isArray(item.lines) || !object(item.totals) || typeof item.totals.lines !== "number") throw new Error("Invalid individual-test page");
-      if (!first) first = item;
-      else if (!object(first.totals) || first.totals.lines !== item.totals.lines || first.outcome !== item.outcome || first.role !== item.role || first.attribution !== item.attribution) throw new Error("Individual-test pages disagree");
-      for (const line of item.lines) {
-        if (!object(line) || typeof line.file !== "string" || !Number.isInteger(line.line)) throw new Error("Invalid source location");
-        lines.set(`${line.file}:${line.line}`, line as unknown as Location);
-      }
-      if (!page.pagination?.hasMore) break;
-      const next = page.pagination.nextOffset;
-      if (next === null || next <= offset) throw new Error("Non-progressing test pagination");
-      offset = next;
-    }
-    rawTests.push(rawTest({ ...first, lines: [...lines.values()] }));
-  }
-  const rawLines: Record<string, LineEvidence> = {};
-  for (const file of options.sourceFiles) {
-    for (const line of changed[file]) {
-      let page: Envelope;
-      try { page = await query(root, ["runs", runId, "line", `${file}:${line}`, "--limit", "0", "--json"]); }
-      catch (error) {
-        const stdout = (error as { stdout?: string }).stdout;
-        let parsed: unknown;
-        try { parsed = JSON.parse(stdout ?? ""); } catch { /* Preserve the original failure. */ }
-        if (!object(parsed) || parsed.ok !== false || !object(parsed.error) || parsed.error.code !== "SOURCE_NOT_FOUND") throw error;
-        rawLines[`${file}:${line}`] = { totalAnchored: 0, covered: false, tests: [], limitations: ["Source has no measured executable obligations."] };
-        continue;
-      }
-      const data = page.data;
-      // Supercov omits line coverage when there is no line obligation. Such a
-      // line may still contain decision/branch obligations; preserve their counts.
-      if (data.covered === undefined && data.lineObligation === false && Number.isInteger(data.totalAnchored) && Number.isInteger(data.coveredAnchored) && Number(data.totalAnchored) >= 0 && Number(data.coveredAnchored) >= 0 && Number(data.coveredAnchored) <= Number(data.totalAnchored))
-        data.covered = Number(data.coveredAnchored) > 0;
-      if (page.pagination?.hasMore || typeof data.totalAnchored !== "number" || typeof data.covered !== "boolean" || !Array.isArray(data.tests) || !Array.isArray(data.limitations))
-        throw new Error("Incomplete changed-line evidence");
-      rawLines[`${file}:${line}`] = data as unknown as LineEvidence;
-    }
-  }
+  const rawTests = await collectTestEvidence(runId, args => query(root, args));
+  const locations = options.sourceFiles.flatMap(file => changed[file].map(line => `${file}:${line}`));
+  const rawLines = await collectLineEvidence(runId, locations, args => query(root, args));
   const measuredAt = typeof summary.generatedAt === "string" ? summary.generatedAt : new Date().toISOString();
   const measurement = { options, base, head, projectPath, runId, exitCode, measuredAt, snapshots, configurationHashes: configHashes, before, changed, rawTests, rawLines, summary };
   await writeFile(path.join(outputDirectory, "supercov-evidence.json"), JSON.stringify(measurement, null, 2));

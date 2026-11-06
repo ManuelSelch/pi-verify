@@ -19,7 +19,7 @@ test("collects TypeScript coverage and automatically imports it into the review"
     writeFileSync(path.join(dir, ".gitignore"), ".pi-verify/\n.supercov/\n");
     writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: "module", scripts: { test: "node --experimental-strip-types --test tests/*.test.ts tests/nested/*.test.ts" } }));
     writeFileSync(path.join(dir, "src/math.ts"), "export const add = (a: number, b: number) => a + b;\n");
-    writeFileSync(path.join(dir, "tests/math.test.ts"), 'import { test } from "node:test";\nimport { strict as assert } from "node:assert";\nimport { add } from "../src/math.ts";\ntest("add", () => assert.equal(add(1, 2), 3));\n');
+    writeFileSync(path.join(dir, "tests/math.test.ts"), 'import { test } from "node:test";\nimport { strict as assert } from "node:assert";\nimport { add } from "../src/math.ts";\ntest("add", () => assert.equal(add(1, 2), 3));\n' + Array.from({ length: 4 }, (_, i) => `test("add ${i}", () => assert.equal(add(1, 2), 3));\n`).join(""));
     writeFileSync(path.join(dir, "src/nested/value.ts"), "export const value: number = 7;\n");
     writeFileSync(path.join(dir, "tests/nested/value.test.ts"), 'import { test } from "node:test";\nimport { strict as assert } from "node:assert";\nimport { value } from "../../src/nested/value.ts";\ntest("value", () => assert.equal(value, 7));\n');
     git("init"); git("config", "user.email", "test@example.com"); git("config", "user.name", "Test"); git("add", "."); git("commit", "-m", "base"); git("checkout", "-b", "feature");
@@ -37,6 +37,7 @@ test("collects TypeScript coverage and automatically imports it into the review"
     assert.ok(coverage.tests.some((item: { name: string }) => item.name === "add"));
     assert.ok(coverage.tests.some((item: { name: string }) => item.name === "value"));
     assert.ok(coverage.sources["src/nested/value.ts"]);
+    assert.equal(coverage.changedLines.find((line: { file: string; line: number }) => line.file === "src/math.ts" && line.line === 1).coveringTests.length, 5, "bulk line samples must not truncate per-test attribution");
     const reviewed = run("review");
     assert.equal(reviewed.status, 0, reviewed.stderr);
     const report = JSON.parse(readFileSync(path.join(dir, ".pi-verify", "pi-verify-report.json"), "utf8"));
