@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { coverageHtml } from "../src/review-report/ui/coverage-html.js";
+import { coverageCss, coverageHtml } from "../src/review-report/ui/coverage-html.js";
 import type { CoverageReport, CoverageTest } from "../src/review-report/infra/coverage.js";
 
 function evidence(file: string, overrides: Partial<CoverageTest> = {}): CoverageTest {
@@ -10,6 +10,13 @@ function report(tests: CoverageTest[]): CoverageReport {
   return { schemaVersion: 1, collector: { name: "Supercov", version: "1" }, run: { id: "1", exitCode: 0, command: ["npm", "test"], measuredAt: "now" }, comparison: { base: "a", head: "b", projectPath: "", workingTree: true }, stale: false, sources: {}, tests, setups: [], deletedTests: [], changedLines: [], limitations: [] };
 }
 function allPanel(html: string): string { return html.split('<div class="all-panel">')[1].split('</div></div></div>')[0]; }
+
+test("individual test rows are compact and borderless without changing group spacing", () => {
+  assert.match(coverageCss, /\.coverage-row>summary\{cursor:pointer;padding:6px 4px\}/);
+  assert.doesNotMatch(coverageCss, /[^{}]*\.coverage-row[^{}]*\{[^}]*border/);
+  assert.match(coverageCss, /\.coverage-folder>summary,\.coverage-file>summary\{cursor:pointer;padding:12px 4px/);
+  assert.match(coverageCss, /\.coverage-gaps\{border-top:1px solid #e9f0ec\}/);
+});
 
 test("colocated tests have just owning-folder and file groups, with test directories omitted", () => {
   const html = allPanel(coverageHtml(report([
