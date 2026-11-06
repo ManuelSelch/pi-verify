@@ -1,4 +1,6 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { coverageScript } from "./coverage-controls.js";
 import type { ArtifactEntry, VerificationReport } from "../../report.js";
 import { architectureCss, architectureHtml } from "../../architecture/html.js";
 import { coverageCss, coverageHtml } from "./coverage-html.js";
@@ -21,12 +23,14 @@ export function reportHtml(report: VerificationReport, directory: string): strin
   const branch = typeof report.source?.branch === "string" ? report.source.branch : "Unknown branch";
   const base = review?.comparison.base ?? "Unavailable", target = review?.comparison.target ?? "Unavailable";
   const coverage = review?.coverage ? coverageHtml(review.coverage) : unavailable("Tests & coverage", review?.sections.testsCoverage.limitations);
+  const scriptPolicy = review?.coverage ? ` script-src 'sha256-${createHash("sha256").update(coverageScript).digest("base64")}';` : "";
+  const script = review?.coverage ? `<script>${coverageScript}</script>` : "";
   const architecture = review?.architecture ? architectureHtml(review.architecture) : unavailable("Architecture", review?.sections.architecture.limitations);
   const details = `<details class="other-details"><summary>Verification details</summary><h2>${escape(report.verdict)}</h2><p>${escape(report.goal)}</p><p>Checks and changes are agent-reported.</p><ul>${(report.checks ?? []).map(c => `<li>${escape(c.command)} · ${escape(c.outcome)}</li>`).join("")}</ul><h3>Changed files</h3>${(report.changes ?? []).map(c => `<p>${escape(c.file)}: ${escape(c.summary)}</p>`).join("")}<h3>Evidence</h3>${(report.artifacts ?? []).map(a => evidenceCard(a, directory)).join("")}<h3>Limitations</h3><ul>${[...(report.limitations ?? []), ...(report.skipped ?? []).map(x => `Skipped: ${x}`)].map(x => `<li>${escape(x)}</li>`).join("")}</ul></details>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Verification report</title><style>${css}${architectureCss}${coverageCss}</style></head>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none';${scriptPolicy} img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Verification report</title><style>${css}${architectureCss}${coverageCss}</style></head>
 <body><a class="skip" href="#main">Skip to report</a><div class="app"><aside class="sidebar"><div class="brand"><span class="brand-icon">✓</span><strong>verify</strong></div><p class="side-label">REVIEW</p><nav aria-label="Report sections"><a href="#tests-coverage">◉ &nbsp; Tests &amp; coverage</a><a href="#architecture">▦ &nbsp; Architecture</a></nav></aside>
 <main id="main"><div class="breadcrumb">pi-verify / verification report</div><header><div class="eyebrow">● &nbsp; VERIFICATION REPORT</div><h1>Review</h1><div class="context"><span>${escape(branch)}</span><span>Base <b>${escape(base)}</b></span><span>Target <b>${escape(target)}</b></span></div></header>
-<section class="page" id="tests-coverage">${coverage}${details}</section><section class="page" id="architecture">${architecture}</section></main></div></body></html>\n`;
+<section class="page" id="tests-coverage">${coverage}${details}</section><section class="page" id="architecture">${architecture}</section></main></div>${script}</body></html>\n`;
 }
 const css = `
 .other-details{margin-top:18px;border:1px solid #e2ebe6;border-radius:10px;padding:16px}.other-details summary{cursor:pointer;font-weight:600}.other-details h2,.other-details h3{margin-top:16px}.other-details img{display:block;max-width:100%;height:auto;margin-top:12px}.other-details article{border-top:1px solid #e2ebe6;padding:12px 0}

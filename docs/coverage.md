@@ -10,6 +10,16 @@ npx pi-verify preview
 
 The separate coverage command is intentional: it executes tests, whereas `review` reads committed architecture diagrams directly without executing them. Collection selects the verified feature-branch creation base, just like review. Without one, both commands use the merge-base with the configured upstream to compare local, unpushed commits. This uses locally available remote refs without fetching; run `git fetch` first to refresh them. Use `--base REF` on both commands if neither base is available or a different comparison is desired. Review always generates a new report and never runs tests. It imports the default evidence when the measured sources, tests and project configuration still match the committed target, so later commits that do not change those files keep the existing coverage. Evidence measured from different sources is not shown. Pass `--coverage-report` to require an exact base and target match; a mismatched explicit file fails instead of being ignored. Failed tests produce a nonzero collection exit code and retain their outcome in the evidence.
 
+## Browsing tests in the report
+
+Each coverage view groups tests as **owning folder → test file → individual tests**, without module configuration. Colocated `__tests__/` and `tests/` directories are omitted from group labels: `src/features/calendar/__tests__/integration/calendar.test.ts` appears under `src/features/calendar`, with `integration/calendar.test.ts` as its file row. A shared root `tests/` stays one group; paths such as `unit/example.test.ts` remain on file rows. Files without a test-directory marker use their immediate parent directory. Original paths remain in test evidence and search.
+
+Folder and file summaries show counts and recorded outcomes for the selected view. Groups containing failures start expanded; other groups start collapsed. Search matches test names or original paths, opens matching groups, and updates counts. Clearing search restores the default expansion. Expand all / Collapse all affects folder and file groups, not individual test evidence. Source, changed-test diffs, changed-code hits, uncertainty warnings, and measurement details remain available.
+
+Controls run locally in the portable HTML using a hash-authorized embedded script, without network access. Without JavaScript, native folder/file/test disclosures and the existing coverage-view filters still work; search and bulk controls stay hidden.
+
+## Discovery and collection scope
+
 By default, the collector recursively discovers Git-tracked TypeScript source files under `src/` and TypeScript test files under `tests/`. Declaration files are excluded, as are recognized test files within source directories. Discovery is a convenience, not proof of complete scope. To select other directories, repeat `--source` and `--test` with project-relative directory paths; providing either option replaces that category's default. Individual files are not accepted. For a monorepo, use `--root path/to/package` with paths relative to that package. Git-ignored and untracked files are not automatically discovered.
 
 ```bash
