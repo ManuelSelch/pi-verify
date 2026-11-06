@@ -4,9 +4,10 @@ import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { promisify } from "node:util";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { changedLineNumbers, diffLines, functionContext, testDefinitions } from "./analysis.js";
+import { diffLines, functionContext, testDefinitions } from "./analysis.js";
 import type { ChangedLine, Report, TestEvidence } from "./model.js";
 import { collectLineEvidence, collectTestEvidence, type Envelope, type LineEvidence, type RawTest } from "./infra/supercov-evidence.js";
+import { collectGitSnapshots } from "./infra/git-snapshots.js";
 
 const exec = promisify(execFile);
 const binary = path.resolve(path.dirname(createRequire(import.meta.url).resolve("supercov/register")), "../../bin/supercov.js");
@@ -66,11 +67,6 @@ function validatePath(file: string): void {
   if (path.isAbsolute(file) || file.split(/[\\/]/).includes("..") || file.startsWith("-"))
     throw new Error(`Expected a project-relative path: ${file}`);
 }
-async function baseSource(root: string, revision: string, file: string): Promise<string> {
-  const listed = await git(root, "ls-tree", "--name-only", revision, "--", file);
-  if (!listed.trim()) return "";
-  return git(root, "show", `${revision}:./${file}`);
-}
 export async function measure(options: Options): Promise<Measurement> {
   const root = path.resolve(options.root);
   const outputDirectory = path.resolve(options.outputDirectory);
@@ -83,17 +79,11 @@ export async function measure(options: Options): Promise<Measurement> {
   await mkdir(outputDirectory, { recursive: true });
   const configHashes = await configurationHashes(root);
   const snapshots: Measurement["snapshots"] = {};
-  const before: Record<string, string> = {};
-  const changed: Record<string, number[]> = {};
   for (const file of files) {
     const source = await readFile(path.join(root, file), "utf8");
     snapshots[file] = { source, sha256: sha256(source) };
-    before[file] = await baseSource(root, base, file);
-    const tracked = (await git(root, "ls-tree", "--name-only", base, "--", file)).trim();
-    changed[file] = tracked
-      ? changedLineNumbers(await git(root, "diff", "--no-ext-diff", "--no-textconv", "--unified=0", base, "--", file))
-      : (source ? source.replace(/\n$/, "").split("\n").map((_, index) => index + 1) : []);
   }
+  const { before, changed } = await collectGitSnapshots(root, base, Object.fromEntries(Object.entries(snapshots).map(([file, snapshot]) => [file, snapshot.source])));
   const idFile = path.join(outputDirectory, "run-id.txt");
   await rm(idFile, { force: true });
   let stdout = "", stderr = "", exitCode = 0;

@@ -12,6 +12,8 @@ The separate coverage command is intentional: it executes tests, whereas `review
 
 ## Collection performance
 
+Before measurement, snapshot preparation uses one literal-path, NUL-delimited Git tree lookup, one `git cat-file --batch` process for unique base blobs, and one combined working-tree diff. Blob frames are decoded by byte length, and raw diff paths are paired with patches without decoding quoted filenames. This preserves package-relative paths in monorepos and captures committed, staged and unstaged changes; files absent at the base count as entirely added, including untracked files explicitly supplied to the collector. Empty scopes skip Git, and scopes with no base blobs skip `cat-file`.
+
 Collection runs `npm test` once through Supercov; the project's test runner controls test execution parallelism. Afterwards, the collector retrieves individual-test evidence with at most four concurrent queries and preserves inventory order. Changed source lines are queried in batches of up to 100 locations, following Supercov pagination even with `--limit 0`. These queries read the immutable run ID and do not rerun tests.
 
 Bulk line replies contain only a sample of covering tests. Complete report attribution comes from the separately paginated individual-test evidence, so the sample does not limit the report's covering-test lists. In `supercov-evidence.json`, `rawLines` retains Supercov's sampled line replies while `rawTests` holds complete per-test executed lines. Missing sources remain uncertain; other query failures and incomplete evidence stop collection. Test-query failures stop scheduling new work and settle active queries before returning.
