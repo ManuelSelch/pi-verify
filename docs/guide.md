@@ -57,6 +57,12 @@ pi install ./pi-verify
 
 Pi loads `src/extension.ts` directly through its TypeScript loader. A build is only required for this repository's compiled tests, not for reloading the installed package.
 
+## Repository review shortcut
+
+From this repository checkout, `npm run review` builds the CLI, resolves the merge-base of HEAD and the configured upstream, collects fresh coverage by executing `npm test` through Supercov, then generates `.pi-verify/pi-verify-report.html` with that exact coverage report. It does not fetch or push. Configure an upstream first and commit source, tests and package configuration changes before running it: coverage import checks them against HEAD. Node.js 22.18+ and optional dependencies (Supercov) are required.
+
+Failed tests still produce a report when collection supplied usable evidence, and the command exits nonzero. Collector failures without fresh evidence or invalid coverage stop the workflow; old evidence is not reused. The underlying `pi-verify review` command remains measurement-free. Open the result with `node dist/src/cli.js preview`.
+
 ## Standalone CLI
 
 The package provides `pi-verify review`, `pi-verify preview` and `pi-verify architecture` independently of Pi. Install it in your project with `npm install --save-dev @manuelselch/pi-verify`, then use `npx pi-verify review`, `npx pi-verify preview` and `npx pi-verify architecture` (or add npm script aliases). Without installing, use the same commands through `npx @manuelselch/pi-verify`. From this checkout, `npm pack` builds a tarball that can be installed in another project with `npm install --save-dev /path/to/manuelselch-pi-verify-0.1.2.tgz`.

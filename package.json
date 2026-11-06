@@ -19,7 +19,8 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "prepack": "npm run build",
     "test": "npm run build && node --test dist/tests/*.test.js",
-    "check": "npm run build && npm test"
+    "check": "npm run build && npm test",
+    "review": "npm run build && node scripts/review.mjs"
   },
   "bin": {
     "pi-verify": "./dist/src/cli.js"
