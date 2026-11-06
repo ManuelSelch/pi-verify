@@ -6,7 +6,10 @@ import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
+import { coverageProcessEnvironment, coverageProcessRoot } from "./support/coverage-process.js";
+
 const exec = promisify(execFile);
+const root = coverageProcessRoot();
 type Snapshot = {
   name: string;
   counts: Record<string, number>;
@@ -18,10 +21,9 @@ async function measure(mode: "serial" | "overlap"): Promise<Snapshot[]> {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pi-verify-coverage-spike-"));
   try {
     const output = path.join(directory, "snapshots.json");
-    const env: NodeJS.ProcessEnv = { ...process.env, SPIKE_MODE: mode, SPIKE_OUTPUT: output };
-    delete env.NODE_TEST_CONTEXT;
+    const env: NodeJS.ProcessEnv = { ...coverageProcessEnvironment(), SPIKE_MODE: mode, SPIKE_OUTPUT: output };
     await exec(process.execPath, ["--test", "tests/fixtures/coverage-spike/hooked-suite.cjs"], {
-      cwd: process.cwd(),
+      cwd: root,
       env,
       timeout: 15000,
     });
@@ -50,16 +52,15 @@ test("real TypeScript source maps and parallel test-file snapshots expose attrib
   const directory = await mkdtemp(path.join(os.tmpdir(), "pi-verify-coverage-real-"));
   try {
     const output = path.join(directory, "snapshots.jsonl");
-    const env: NodeJS.ProcessEnv = { ...process.env, SPIKE_TARGET: path.resolve("dist/src/report.js"), SPIKE_OUTPUT: output, SPIKE_BARRIER: directory };
-    delete env.NODE_TEST_CONTEXT;
+    const env: NodeJS.ProcessEnv = { ...coverageProcessEnvironment(), SPIKE_TARGET: path.join(root, "dist/src/report.js"), SPIKE_OUTPUT: output, SPIKE_BARRIER: directory };
     const args = ["--enable-source-maps", "--require", "./tests/fixtures/coverage-spike/preload.cjs", "--test", "--test-concurrency=2", "tests/fixtures/coverage-spike/real-report-one.cjs", "tests/fixtures/coverage-spike/real-report-two.cjs"];
 
-    await exec(process.execPath, args, { env, timeout: 15000 });
+    await exec(process.execPath, args, { cwd: root, env, timeout: 15000 });
     const rows = (await readFile(output, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { name: string; pid: number; files: Record<string, number[]>; sourceMapFound: boolean });
-    const source = path.resolve("src/report.ts");
+    const source = path.join(root, "src/report.ts");
     const text = await readFile(source, "utf8");
     const changedLine = text.split("\n").findIndex((line) => line.includes("JSON.stringify({ schemaVersion: 1")) + 1;
-    assert.ok(changedLine > 0);
+    assert.ok(changedLine > 0, "the original report source contains the measured schema-version line");
     assert.equal(rows.length, 3);
     assert.equal(new Set(rows.map((row) => row.pid)).size, 2, "parallel files have separate coverage counters");
     assert.ok(rows.every((row) => row.sourceMapFound && row.files[source].includes(changedLine)));
@@ -93,12 +94,11 @@ test("failing test still triggers the coverage hook but the snapshot has no outc
   const directory = await mkdtemp(path.join(os.tmpdir(), "pi-verify-coverage-failure-"));
   try {
     const output = path.join(directory, "failure.jsonl");
-    const env: NodeJS.ProcessEnv = { ...process.env, SPIKE_TARGET: path.resolve("dist/src/report.js"), SPIKE_OUTPUT: output };
-    delete env.NODE_TEST_CONTEXT;
-    await assert.rejects(exec(process.execPath, ["--enable-source-maps", "--require", "./tests/fixtures/coverage-spike/preload.cjs", "--test", "tests/fixtures/coverage-spike/real-report-failure.cjs"], { env, timeout: 15000 }), (error: { code?: number }) => error.code === 1);
+    const env: NodeJS.ProcessEnv = { ...coverageProcessEnvironment(), SPIKE_TARGET: path.join(root, "dist/src/report.js"), SPIKE_OUTPUT: output };
+    await assert.rejects(exec(process.execPath, ["--enable-source-maps", "--require", "./tests/fixtures/coverage-spike/preload.cjs", "--test", "tests/fixtures/coverage-spike/real-report-failure.cjs"], { cwd: root, env, timeout: 15000 }), (error: { code?: number }) => error.code === 1);
     const row = JSON.parse((await readFile(output, "utf8")).trim()) as { name: string; files: Record<string, number[]>; status?: string };
     assert.equal(row.name, "failing example");
-    assert.ok(row.files[path.resolve("src/report.ts")].length > 0);
+    assert.ok(row.files[path.join(root, "src/report.ts")].length > 0);
     assert.equal(row.status, undefined);
   } finally {
     await rm(directory, { recursive: true, force: true });

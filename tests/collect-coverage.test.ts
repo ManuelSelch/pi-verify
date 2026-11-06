@@ -5,14 +5,15 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { coverageProcessEnvironment, coverageProcessRoot } from "./support/coverage-process.js";
 
-const cli = process.env.PI_VERIFY_TEST_CLI ?? fileURLToPath(new URL("../src/cli.js", import.meta.url));
+const cli = process.env.PI_VERIFY_TEST_CLI ?? (process.env.SUPERCOV_SOURCE_PROJECT_ROOT ? path.join(coverageProcessRoot(), "dist/src/cli.js") : fileURLToPath(new URL("../src/cli.js", import.meta.url)));
 const supportsTypescript = Number(process.versions.node.split(".")[0]) >= 23 || (Number(process.versions.node.split(".")[0]) === 22 && Number(process.versions.node.split(".")[1]) >= 18);
 
 test("collects TypeScript coverage and automatically imports it into the review", { skip: !supportsTypescript, timeout: 120000 }, () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "pi-coverage-cli-"));
   const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "pipe" }).toString().trim();
-  const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: dir, encoding: "utf8", timeout: 100000 });
+  const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: dir, encoding: "utf8", timeout: 100000, env: coverageProcessEnvironment() });
   try {
     mkdirSync(path.join(dir, "src", "nested"), { recursive: true }); mkdirSync(path.join(dir, "tests", "nested"), { recursive: true }); mkdirSync(path.join(dir, "docs"));
     writeFileSync(path.join(dir, ".gitignore"), ".pi-verify/\n.supercov/\n");
