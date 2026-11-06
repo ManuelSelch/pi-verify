@@ -12,7 +12,7 @@ export type GitScope = {
   branch: string;
   head: string;
   baseline: string | null;
-  baselineMethod: "branch-creation-reflog" | "primary-worktree-merge-base" | "empty-tree" | "unknown";
+  baselineMethod: "branch-creation-reflog" | "primary-worktree-merge-base" | "upstream-merge-base" | "empty-tree" | "unknown";
   fingerprint: string;
   clean: boolean;
   staged: string[];
@@ -67,13 +67,12 @@ async function fingerprint(cwd: string): Promise<string> {
 }
 
 async function findBaseline(cwd: string, branch: string, head: string): Promise<Pick<GitScope, "baseline" | "baselineMethod">> {
+  let initialCommit = false;
   if (branch !== "HEAD") {
     const reflog = await git(cwd, ["reflog", "show", "--format=%H%x00%gs", `refs/heads/${branch}`], true);
     const oldest = reflog.split("\n").filter(Boolean).at(-1)?.split("\0");
     if (oldest?.[1]?.startsWith("branch: Created from ")) return { baseline: oldest[0], baselineMethod: "branch-creation-reflog" };
-    if (oldest?.[1]?.startsWith("commit (initial)")) {
-      return { baseline: await git(cwd, ["hash-object", "-t", "tree", "/dev/null"]), baselineMethod: "empty-tree" };
-    }
+    initialCommit = oldest?.[1]?.startsWith("commit (initial)") ?? false;
   }
 
   const worktrees = await git(cwd, ["worktree", "list", "--porcelain"], true);
@@ -82,6 +81,14 @@ async function findBaseline(cwd: string, branch: string, head: string): Promise<
     const baseline = await git(cwd, ["merge-base", head, `refs/heads/${primaryBranch}`], true);
     if (baseline) return { baseline, baselineMethod: "primary-worktree-merge-base" };
   }
+  if (branch !== "HEAD") {
+    const upstream = await git(cwd, ["rev-parse", "--verify", "@{upstream}^{commit}"], true);
+    if (upstream) {
+      const baseline = await git(cwd, ["merge-base", head, upstream], true);
+      if (baseline) return { baseline, baselineMethod: "upstream-merge-base" };
+    }
+  }
+  if (initialCommit) return { baseline: await git(cwd, ["hash-object", "-t", "tree", "/dev/null"]), baselineMethod: "empty-tree" };
   return { baseline: null, baselineMethod: "unknown" };
 }
 

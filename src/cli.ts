@@ -31,14 +31,15 @@ function options(args: string[], allowed: string[]): Record<string, string> {
 async function comparison(scope: GitScope, baseOption?: string, targetOption?: string) {
   const git = async (...argv: string[]) => (await exec("git", argv, { cwd: scope.repository })).stdout.trim();
   const target = await git("rev-parse", "--verify", `${targetOption ?? "HEAD"}^{commit}`);
-  const selected = baseOption ?? (scope.baselineMethod === "branch-creation-reflog" ? scope.baseline : null);
-  if (!selected) throw new Error("Branch creation base is unavailable; specify --base REF.");
+  const method = baseOption ? "explicit" : scope.baselineMethod;
+  const selected = baseOption ?? (method === "branch-creation-reflog" || method === "upstream-merge-base" ? scope.baseline : null);
+  if (!selected) throw new Error("Branch creation base and upstream comparison are unavailable; configure an upstream or specify --base REF.");
   const base = await git("rev-parse", "--verify", `${selected}^{commit}`);
   if (!baseOption) {
     try { await git("merge-base", "--is-ancestor", base, target); }
-    catch { throw new Error("Branch creation base is not an ancestor of target; specify --base REF."); }
+    catch { throw new Error("Comparison base is not an ancestor of target; specify --base REF."); }
   }
-  return { base, target, tree: await git("rev-parse", `${target}^{tree}`) };
+  return { base, target, method: method as "explicit" | "branch-creation-reflog" | "upstream-merge-base", tree: await git("rev-parse", `${target}^{tree}`) };
 }
 
 async function checkArchitectureOnWorkingTree(write: boolean, accept: boolean) {
@@ -144,7 +145,7 @@ async function main() {
   if (command !== "review") throw new Error(`Unknown command: ${command}\n${usage}`);
   const opts = options(args, ["--base", "--target", "--output", "--coverage-report"]);
   const scope = await collectGitScope(process.cwd());
-  const { base, target, tree } = await comparison(scope, opts["--base"], opts["--target"]);
+  const { base, target, tree, method } = await comparison(scope, opts["--base"], opts["--target"]);
   const architecture = await collectArchitecture(scope.repository, base, target);
   const defaultCoverage = path.join(scope.repository, ".pi-verify", "coverage", "report.json");
   let coverage: CoverageReport | undefined;
@@ -166,7 +167,7 @@ async function main() {
     schemaVersion: 1,
     ...(architecture && hasArchitecture ? { architecture } : {}),
     ...(coverage ? { coverage } : {}),
-    comparison: { status: "available", base, target, targetTree: tree, method: opts["--base"] ? "explicit" : "branch-creation-reflog", includesUncommitted: false, excludedWorkingTree: { staged: scope.staged, unstaged: scope.unstaged, untracked: scope.untracked }, limitations: ["Working tree changes are excluded."] },
+    comparison: { status: "available", base, target, targetTree: tree, method, includesUncommitted: false, excludedWorkingTree: { staged: scope.staged, unstaged: scope.unstaged, untracked: scope.untracked }, limitations: ["Working tree changes are excluded."] },
     sections: {
       overview: section, changes: section, complexity: section, evidence: section,
       testsCoverage: coverage ? { ...section, status: "available", source: "coverage-collector", revision: target, scope: "Imported per-test coverage", limitations: coverage.limitations } : { ...section, scope: "Per-test coverage", limitations: ["No coverage report supplied."] },

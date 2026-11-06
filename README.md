@@ -19,7 +19,7 @@ npx @manuelselch/pi-verify architecture
 
 Alternatively, install `@manuelselch/pi-verify` as a development dependency and run `npx pi-verify review`, `npx pi-verify preview` and `npx pi-verify architecture`. Node.js 20 or later is required.
 
-The review compares committed revisions, excluding working-tree changes. If the branch-creation base cannot be determined, provide `--base REF`. Reports are written to `.pi-verify/`; consider adding it to your project's `.gitignore`. Review does not run tests automatically. To collect coverage first, run `npx @manuelselch/pi-verify collect-coverage`; see the [coverage guide](docs/coverage.md) for requirements and scope.
+The review compares committed revisions, excluding working-tree changes. If no feature-branch creation base is available, it falls back to the merge-base of HEAD and the branch’s configured upstream, selecting local commits not yet pushed. Remote refs are not fetched automatically; run `git fetch` to refresh them. If neither base is available, configure an upstream or provide `--base REF`. Reports are written to `.pi-verify/`; consider adding it to your project's `.gitignore`. Review does not run tests automatically. To collect coverage first, run `npx @manuelselch/pi-verify collect-coverage`; see the [coverage guide](docs/coverage.md) for requirements and scope.
 
 ## Pi integration
 

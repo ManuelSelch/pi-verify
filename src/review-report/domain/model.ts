@@ -16,7 +16,7 @@ export type ReviewReport = {
     base: string | null;
     target: string | null;
     targetTree: string | null;
-    method: "branch-creation-reflog" | "explicit" | "unavailable";
+    method: "branch-creation-reflog" | "upstream-merge-base" | "explicit" | "unavailable";
     includesUncommitted: false;
     excludedWorkingTree: { staged: string[]; unstaged: string[]; untracked: string[] };
     limitations: string[];
