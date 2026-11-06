@@ -37,20 +37,22 @@ test("coverage source, diff, hits and gaps retain safe TypeScript syntax colors"
     comparison: { base: "a", head: "b", projectPath: "", workingTree: true }, stale: false, sources: {},
     tests: [{ id: "1", name: "safe", file: "tests/example.ts", line: 1, source, change: "modified", outcome: "passed", attribution: "exact", diff: [{ kind: "removed", text: 'const old = "old";' }, { kind: "added", text: source }], changedHits: [{ file: "src/example.ts", line: 1 }] }],
     changedLines: [{ file: "src/example.ts", line: 1, status: "covered", context }, { file: "src/example.ts", line: 2, status: "uncovered", context: gapContext }], setups: [], deletedTests: [], limitations: [],
+    changedDiffs: { "src/example.ts": [{ startLine: 1, lines: [{ kind: "context", text: "function compute() {", line: 1 }, { kind: "added", text: source, line: 2 }, { kind: "context", text: "}", line: 3 }] }] },
   };
 
   const html = coverageHtml(report);
 
-  assert.ok((html.match(/data-syntax="typescript"/g) ?? []).length >= 4);
+  assert.ok((html.match(/data-syntax="typescript"/g) ?? []).length >= 3);
   assert.match(html, /<span style="color:#[A-Fa-f0-9]+/);
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>/);
   assert.match(html, /class="diff-added"/);
   assert.match(html, /class="diff-removed"/);
   assert.match(html, /Show changed-code hits/);
-  assert.match(html, /uncovered changed line/);
+  assert.match(html, /class="coverage-diff"/);
+  assert.match(html, /<div class="diff-added uncovered">/);
+  assert.match(html, /aria-label="Uncovered changed line"/);
   assert.match(html, /class="context-hit"/);
-  assert.match(html, /class="context-gap"/);
   assert.match(html, /class="source-line" aria-hidden="true">2<\/span><span class="source-marker" aria-label="Uncovered changed line">\+/);
-  assert.ok((html.match(/class="function-context"/g) ?? []).length >= 2);
+  assert.ok((html.match(/class="function-context"/g) ?? []).length >= 1);
 });

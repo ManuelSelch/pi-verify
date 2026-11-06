@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 const exec = promisify(execFile);
 type Location = { file: string; line: number };
 export type Context = { file: string; startLine: number; endLine: number; source: string };
+export type DiffLine = { kind: "added" | "removed" | "context"; text: string; line: number | null };
+export type DiffHunk = { startLine: number; lines: DiffLine[] };
 export type CoverageTest = { id: string; name: string; file: string; line: number | null; source: string | null; change: string; diff: { kind: string; text: string }[]; outcome: string; attribution: string; changedHits: Location[] };
 export type CoverageReport = {
   schemaVersion: 1; collector: { name: string; version: string };
@@ -15,7 +17,26 @@ export type CoverageReport = {
   sources: Record<string, { source: string; sha256: string }>;
   tests: CoverageTest[]; setups: unknown[]; deletedTests: unknown[];
   changedLines: (Location & { status: string; context: Context })[]; limitations: string[];
+  changedDiffs?: Record<string, DiffHunk[]>;
 };
+
+/** Parse a unified git diff into hunks whose lines know their new-file line number. */
+export function unifiedDiff(text: string): DiffHunk[] {
+  const hunks: DiffHunk[] = [];
+  let head: number | null = null;
+  for (const raw of text.split("\n")) {
+    const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+    if (header) { head = Number(header[1]); hunks.push({ startLine: head, lines: [] }); continue; }
+    if (head === null || raw.startsWith("\\")) continue;
+    const hunk = hunks[hunks.length - 1];
+    if (raw.startsWith("+")) hunk.lines.push({ kind: "added", text: raw.slice(1), line: head });
+    else if (raw.startsWith("-")) hunk.lines.push({ kind: "removed", text: raw.slice(1), line: null });
+    else if (raw.startsWith(" ")) hunk.lines.push({ kind: "context", text: raw.slice(1), line: head });
+    else continue;
+    if (!raw.startsWith("-")) head += 1;
+  }
+  return hunks;
+}
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const stringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === "string");
 const location = (v: unknown): v is Location => object(v) && typeof v.file === "string" && Number.isInteger(v.line) && v.line > 0;
@@ -66,5 +87,12 @@ export async function importCoverage(root: string, file: string, base: string, t
   for (const line of value.changedLines) {
     if (!object(line) || !["covered", "uncovered", "unknown", "not-executable"].includes(line.status) || !object(line.context) || typeof line.context.file !== "string" || typeof line.context.source !== "string" || !Number.isInteger(line.context.startLine) || !Number.isInteger(line.context.endLine) || !location(line)) throw new Error("Invalid changed-line evidence");
   }
-  return value as unknown as CoverageReport;
+  const uncovered = new Map<string, number[]>();
+  for (const line of value.changedLines) if (line.status === "uncovered") uncovered.set(line.file, [...uncovered.get(line.file) ?? [], line.line]);
+  const changedDiffs: Record<string, DiffHunk[]> = {};
+  for (const file of uncovered.keys()) {
+    try { changedDiffs[file] = unifiedDiff(await git("diff", "--no-ext-diff", "--no-textconv", "--unified=3", value.comparison.base, value.comparison.head, "--", inRepository(file))); }
+    catch { /* Fall back to the enclosing-function context in the report. */ }
+  }
+  return { ...value, changedDiffs } as CoverageReport;
 }
