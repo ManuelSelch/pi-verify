@@ -1,6 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildVerifyPrompt, emitPendingVerificationReport } from "../src/extension.js";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import registerVerify, { buildVerifyPrompt, emitPendingVerificationReport } from "../src/extension.js";
+
+test("architecture commands use the session working directory instead of the process directory", async (t) => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "verify-session-"));
+  t.after(() => rmSync(cwd, { recursive: true, force: true }));
+  const git = (...args: string[]) => execFileSync("git", args, { cwd });
+  git("init", "-q");
+  git("config", "user.name", "Test");
+  git("config", "user.email", "test@example.com");
+  mkdirSync(path.join(cwd, ".pi"));
+  mkdirSync(path.join(cwd, "src", "domain"), { recursive: true });
+  writeFileSync(path.join(cwd, ".pi", "pi-verify.json"), JSON.stringify({ architecture: { diagram: "docs/architecture.drawio", root: "src" } }));
+  writeFileSync(path.join(cwd, "src", "domain", "model.ts"), "export const value = 1;");
+  git("add", ".");
+  git("commit", "-qm", "initial");
+
+  let handler: ((argument: string, ctx: ExtensionCommandContext) => void | Promise<void>) | undefined;
+  const pi = {
+    registerTool() {}, on() {}, sendMessage() {}, sendUserMessage() {},
+    registerCommand(_name, options) { handler = options.handler; },
+  } satisfies ExtensionAPI;
+  registerVerify(pi);
+  assert.ok(handler);
+  const notifications: Array<{ message: string; type?: string }> = [];
+  const ctx = { cwd, ui: { notify: (message: string, type?: "info" | "warning" | "error") => notifications.push({ message, type }) } };
+
+  await handler("open", ctx);
+  assert.match(notifications.pop()?.message ?? "", /Architecture diagram not found/);
+  await handler("approve", ctx);
+  assert.match(notifications.pop()?.message ?? "", /Committed/);
+});
 
 test("verify prompt is composable and task-specific", () => {
   const prompt = buildVerifyPrompt("Fix the login redirect");

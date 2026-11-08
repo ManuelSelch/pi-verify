@@ -83,7 +83,7 @@ export default function registerVerify(pi: ExtensionAPI): void {
     handler: async (argument, ctx) => {
       const command = argument.trim().toLowerCase();
       if (command === "open" || command === "approve") {
-        const result = command === "open" ? await openArchitectureDiagram(process.cwd()) : await approveArchitecture(process.cwd());
+        const result = command === "open" ? await openArchitectureDiagram(ctx.cwd) : await approveArchitecture(ctx.cwd);
         ctx.ui.notify(result.message, result.ok ? "info" : "error");
         return;
       }

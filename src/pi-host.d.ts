@@ -6,6 +6,7 @@ declare module "@earendil-works/pi-coding-agent" {
   }
 
   export interface ExtensionCommandContext {
+    cwd: string;
     ui: { notify(message: string, type?: "info" | "warning" | "error"): void };
   }
 
