@@ -26,7 +26,17 @@ export function buildTestTree(tests: TestInput[]): TestNode[] {
     nodes.forEach(node => { if (node.children) sort(node.children); });
   };
   sort(root);
-  return root;
+  const compact = (nodes: TestNode[]): TestNode[] => nodes.map(node => {
+    if (!node.children) return node;
+    let current = node;
+    let name = node.name;
+    while (current.children?.length === 1 && current.children[0].children) {
+      current = current.children[0];
+      name += `/${current.name}`;
+    }
+    return { ...current, name, children: compact(current.children!) };
+  });
+  return compact(root);
 }
 
 export function filterTestTree(nodes: TestNode[], query: string): TestNode[] {

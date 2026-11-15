@@ -20,6 +20,11 @@ async function main(args: string[]) {
   if (!opts['--junit'] || !opts['--lcov']) throw new Error(usage);
   const root = await realpath(process.cwd());
   const tests = parseJUnit(await readFile(opts['--junit'], 'utf8'));
+  for (const test of tests) {
+    if (!test.file || !path.isAbsolute(test.file)) continue;
+    const relative = path.relative(root, test.file);
+    if (relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)) test.file = relative;
+  }
   const files = parseLcov(await readFile(opts['--lcov'], 'utf8'));
   for (const file of [...files, ...tests.map(test => ({ path: test.file, test }))]) {
     if (!file.path) continue;
@@ -27,6 +32,7 @@ async function main(args: string[]) {
       const resolved = await realpath(path.resolve(root, file.path));
       const relative = path.relative(root, resolved);
       if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) continue;
+      if ('test' in file && path.isAbsolute(file.path)) file.test.file = relative;
       const source = await readFile(resolved, 'utf8');
       const highlightedLines = /\.[cm]?[jt]sx?$/i.test(file.path) ? highlightLines(source, file.path) : undefined;
       const target = 'test' in file ? file.test : file;

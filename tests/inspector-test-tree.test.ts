@@ -25,6 +25,21 @@ test('groups every result by path and opens only failed ancestors by default', (
   assert.deepEqual(tree.find(node => node.name === 'Unknown location')!.tests, [3]);
 });
 
+test('compacts folder chains without merging a branch or file', () => {
+  const tree = buildTestTree([
+    { name: 'one', status: 'failed', file: 'folder-a/folder-b/folder-c/one.test.ts' },
+    { name: 'two', status: 'passed', file: 'folder-a/folder-b/folder-c/two.test.ts' },
+    { name: 'other', status: 'passed', file: 'other/only.test.ts' },
+  ]);
+
+  assert.equal(tree[0].name, 'folder-a/folder-b/folder-c');
+  assert.equal(tree[0].path, 'folder-a/folder-b/folder-c');
+  assert.equal(tree[0].failed, true);
+  assert.equal(tree[0].children!.length, 2);
+  assert.equal(tree[1].name, 'other');
+  assert.equal(filterTestTree(tree, 'folder-b')[0].children!.length, 2);
+});
+
 test('filters by full path or test name without losing matching results', () => {
   const tree = buildTestTree(tests);
   assert.deepEqual(filterTestTree(tree, 'fails')[0].children![0].children![0].tests, [1]);
