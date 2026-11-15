@@ -157,7 +157,7 @@ test("architecture report links the diagram for editing", () => {
   const review = { base: "b", target: "t", basePresent: true, targetPresent: true, before: null, after, delta: null, guardrail: { status: "passed" as const, diagnostics: [], unused: [] }, diagramXml: xml, sourcePath: "/repo/docs/architecture.drawio" };
   const html = architectureHtml(review);
   assert.match(html, /href="vscode:\/\/file\/repo\/docs\/architecture\.drawio"/);
-  assert.match(html, /\/verify approve/);
+  assert.match(html, /pi-verify architecture --accept/);
   assert.doesNotMatch(architectureHtml({ ...review, sourcePath: null }), /vscode:\/\/file/);
 });
 

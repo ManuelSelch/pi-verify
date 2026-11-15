@@ -27,7 +27,7 @@ The review compares committed revisions, excluding working-tree changes. If no f
 
 ## Pi integration
 
-The Pi extension provides `/inspector` to generate and open the Inspector report, `/verify` and evidence-collection tools, plus `/verify open` and `/verify approve` for the architecture diagram. For local development, run `npm install` and start Pi with `pi -e ./` from this checkout. See the [reference guide](docs/guide.md#pi-package-and-verify) for installation and behavior.
+The Pi extension provides `/inspector` to generate and open the Inspector report. For local development, run `npm install` and start Pi with `pi -e ./` from this checkout. See the [reference guide](docs/guide.md#pi-package-and-inspector) for installation and behavior.
 
 ## Documentation
 

@@ -4,7 +4,7 @@ import { cp, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { emitPendingVerificationReport } from "../src/extension.js";
+import { emitPendingVerificationReport } from "../src/verify-tools.js";
 import { createVerificationTools, type VerificationLifecycleState } from "../src/verify-tools.js";
 
 const exec = promisify(execFile);

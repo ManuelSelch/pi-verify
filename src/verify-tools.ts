@@ -180,6 +180,16 @@ export function createVerificationTools(getCwd: () => string, state: Verificatio
   return [attach, finish];
 }
 
-export function registerVerificationTools(pi: { registerTool: (tool: Tool) => void }, getCwd: () => string, state: VerificationLifecycleState): void {
-  for (const tool of createVerificationTools(getCwd, state)) pi.registerTool(tool);
+export function emitPendingVerificationReport(
+  state: VerificationLifecycleState,
+  sendMessage: (message: { customType: string; content: string; display: boolean; details: unknown }, options: { triggerTurn: boolean }) => void,
+): boolean {
+  const pending = state.pendingReport;
+  if (!pending || pending.shown) return false;
+  pending.shown = true;
+  sendMessage({ customType: "pi-verify-report", content: pending.markdown, display: true, details: {
+    verdict: pending.verdict, allowed: pending.allowed, auditDir: pending.auditDir,
+    jsonPath: pending.jsonPath, markdownPath: pending.markdownPath, htmlPath: pending.htmlPath,
+  } }, { triggerTurn: false });
+  return true;
 }

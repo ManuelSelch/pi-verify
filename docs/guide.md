@@ -34,28 +34,10 @@ The source repository does not receive `.agent-audits`; the run directory does. 
 
 Test entries are supplied by the caller. The renderer does not invent test names from a passing suite; framework-specific test-result parsing and Git test inventory extraction are not provided.
 
-## Pi package and `/verify`
+## Pi package and `/inspector`
 
-`src/extension.ts` registers `/verify`. The command sends a focused workflow prompt to the current Pi session; it does not require `/todo`, `/worktree`, planning, or cleanup. It tells the agent to use the verification tools, collect real evidence, list changed tests separately from executed tests, and avoid destructive lifecycle actions.
-
-Two argument subcommands act on the diagram directly, without a model turn (Tab completes them). `/verify open` opens the configured diagram in VS Code, falling back to the default application. `/verify approve` clears the placement markers and commits only the diagram and `.pi/pi-verify.json`; it never pushes and never stages unrelated work. Everything else — including no argument — is still sent to the agent as the verification task focus.
-
-After `verify_finish` writes the report, the extension stores it as a pending completed report. At `agent_end`, it emits the report once as a displayed `pi-verify-report` custom message with `{ triggerTurn: false }`, so it appears in Pi/pi-chat without starting another model turn. Reports are not emitted for runs that stop before `verify_finish`, and repeated lifecycle events do not duplicate the message.
-
-The package manifest exposes the TypeScript extension source through the Pi package field:
-
-```bash
-npm install
-pi -e ./
-```
-
-For a permanent local installation, use Pi's package command from the parent directory:
-
-```bash
-pi install ./pi-verify
-```
-
-Pi loads `src/extension.ts` directly through its TypeScript loader. A build is only required for this repository's compiled tests, not for reloading the installed package.
+- The Pi extension registers `/inspector` only. It generates and opens the Inspector report in the session working directory; see the [Inspector guide](inspector-spike.md).
+- For local development, run `npm install`, `npm run build`, and `pi -e ./`. For a permanent installation, use `pi install ./pi-verify` from the parent directory.
 
 ## Repository review shortcut
 
@@ -73,7 +55,7 @@ The package provides `pi-verify review`, `pi-verify preview` and `pi-verify arch
 npx pi-verify architecture
 ```
 
-`npx pi-verify architecture --write` rebuilds the diagram from the code instead of only checking it. Existing boxes keep the position, size and style a human gave them; removed slices and arrows are dropped; new slices wait in a staging lane marked `placed="auto"` and are listed as `Awaiting human placement` until someone moves them in draw.io, after which the next `--write` clears the marker. Moving is optional: `npx pi-verify architecture --accept` clears every placement marker and restores the normal box style without changing positions, for when the automatic placement is already good. Removals need no action — a slice whose folder disappeared and its arrows are simply dropped, and the command reports the negative counts. With `"transitive": true` it writes the transitive reduction, so only the essential arrows are drawn. The command then runs the normal check and prints its result. This is the intended agent workflow: the agent refreshes the diagram with the feature, and the human approves the resulting diff and lays out any staged box. In Pi the same step is `/verify open` to edit the diagram followed by `/verify approve`, which clears the markers and commits only the diagram and configuration.
+`npx pi-verify architecture --write` rebuilds the diagram from the code instead of only checking it. Existing boxes keep the position, size and style a human gave them; removed slices and arrows are dropped; new slices wait in a staging lane marked `placed="auto"` and are listed as `Awaiting human placement` until someone moves them in draw.io, after which the next `--write` clears the marker. Moving is optional: `npx pi-verify architecture --accept` clears every placement marker and restores the normal box style without changing positions, for when the automatic placement is already good. Removals need no action — a slice whose folder disappeared and its arrows are simply dropped, and the command reports the negative counts. With `"transitive": true` it writes the transitive reduction, so only the essential arrows are drawn. The command then runs the normal check and prints its result. This is the intended agent workflow: the agent refreshes the diagram with the feature, and the human approves the resulting diff and lays out any staged box.
 
 `review` compares committed revisions; it does not run tests or collect coverage. By default it uses the verified feature-branch creation reflog base and HEAD. Without a creation base, it uses the merge-base with the branch’s configured upstream, comparing local commits not yet pushed (including when histories have diverged). It does not fetch; run `git fetch` to refresh remote refs. When neither base is available or the selected base is not an ancestor, specify `--base REF`; `--target REF` optionally selects another commit. The report records staged, unstaged and untracked files excluded from the comparison. Missing diagrams and uncollected analysis are marked unavailable, not passed.
 
@@ -83,11 +65,8 @@ Run `pi-verify collect-coverage` first to collect coverage explicitly; review au
 
 ## Review report foundations
 
-New JSON reports produced by `verify_finish` include a separately versioned `review` object. Its comparison uses the feature branch's creation reflog entry as the base, falling back to the configured upstream merge-base when no creation base is available, and committed HEAD as the target; it records the target Git tree ID and lists staged, unstaged, and untracked files as excluded. The comparison method records `branch-creation-reflog` or `upstream-merge-base`. If neither is available or the selected base cannot be verified as an ancestor of HEAD, the review comparison is unavailable. This is separate from the existing verification report's baseline detection.
-
-The review sections identify their source, scope, revision, status, limitations, and evidence references. When the committed repository configures an architecture diagram, the Architecture section compares it at the selected committed revisions and checks the code's folder imports against it. Tests & coverage can import an explicitly collected Supercov report; it is unavailable unless compatible evidence is supplied, and uncovered changed lines are shown inside the diff that introduced them. The HTML navigation contains these two sections; the other verification summaries, checks, changes and selected evidence remain under its collapsed Verification details and in the existing JSON and Markdown. No external measurement command is run by `verify_finish`. Historical bundles are not rewritten.
-
-Each new bundle also contains a standalone HTML report. `verify_finish` returns its path with the existing JSON and Markdown paths; the one-time Pi message links to it without triggering a model turn. The report uses embedded styles and no network assets or scripts, and links only to selected artifacts inside the bundle using relative paths. Supported raster screenshots appear at their natural size up to the available width; logs, videos, SVGs and other files are downloadable rather than embedded. Copy the whole bundle to preserve evidence links. Navigation uses URL fragments and CSS; a modern browser supporting `:has()` is required to switch sections. HTML is escaped and the report uses a restrictive content security policy; attached files themselves remain untrusted.
+- `pi-verify review` compares committed revisions, renders a standalone HTML bundle, and records its evidence and limitations. It does not execute tests.
+- Copy the whole bundle to preserve evidence links. Report files and evidence can contain sensitive data.
 
 ## Configuration
 
@@ -116,7 +95,7 @@ The file is read at the compared revisions, not from the working tree.
 
 The architecture guardrail checks module-level structure: folders under `root` are the slices (selected by `slices` patterns, defaulting to each immediate subfolder), and imports between them are the dependencies. It is optional; without an `architecture` key in [.pi/pi-verify.json](#configuration) nothing is collected.
 
-`npx pi-verify architecture` runs the check against the working tree and is the usual way to adopt it in another project or CI. It resolves the nearest `.pi/pi-verify.json` from the working directory up to the Git repository root, and resolves `diagram` and `root` relative to that directory — so a package inside a monorepo keeps its own configuration and the check runs with the package as the working directory. `review` additionally compares committed revisions and renders the HTML panel; it locates the same configuration in the committed tree (the repository root, or the single package-local `.pi/pi-verify.json`) and reads the diagram from the compared revisions, so both must be committed. `/verify` collects the same comparison automatically.
+`npx pi-verify architecture` runs the check against the working tree and is the usual way to adopt it in another project or CI. It resolves the nearest `.pi/pi-verify.json` from the working directory up to the Git repository root, and resolves `diagram` and `root` relative to that directory — so a package inside a monorepo keeps its own configuration and the check runs with the package as the working directory. `review` additionally compares committed revisions and renders the HTML panel; it locates the same configuration in the committed tree (the repository root, or the single package-local `.pi/pi-verify.json`) and reads the diagram from the compared revisions, so both must be committed.
 
 Commit an uncompressed, single-page draw.io XML diagram with one box per slice and one directed arrow per allowed dependency. Boxes carry `concept="domain"` with the box label equal to the folder name; arrows carry `assoc="domain->infra"`, and the two ends name the arrow's direction. Attributes can be edited in draw.io's Edit Data dialog. See [the example drawing](../docs/architecture.drawio) for the XML structure.
 
@@ -132,7 +111,7 @@ The guardrail reads TypeScript sources and resolves relative imports, including 
 
 By default arrows are an allow-list of direct dependencies: every code dependency must be an arrow, while an allowed-but-unused arrow is reported as "Allowed but unused" instead of failing. `"strict": true` fails unused arrows too, and `"transitive": true` additionally allows a dependency the diagram reaches through a path, which is how you keep the picture small by drawing only the essential arrows. A file directly under the root belongs to no slice, and unresolved specifiers (assets, external files) are ignored rather than reported. Visible labels, box positions and styling belong to the human; only identities and arrow direction are checked, so moving or resizing a box is not a change.
 
-Each revision uses its own committed configuration, and the working tree is excluded. When `/verify` or `review` runs, the target diagram is bundled as `architecture.drawio`, and the report renders the panel with Changes / Before / After views and links the diagram with `vscode://file/...` so it opens in VS Code. A missing historical diagram is labelled absent; unavailable bases and invalid data are not treated as successful comparisons.
+Each revision uses its own committed configuration, and the working tree is excluded. When `review` runs, the target diagram is bundled as `architecture.drawio`, and the report renders the panel with Changes / Before / After views and links the diagram with `vscode://file/...` so it opens in VS Code. A missing historical diagram is labelled absent; unavailable bases and invalid data are not treated as successful comparisons.
 
 This is an import-graph check, not a runtime or dynamic-dependency check. Bare package specifiers are external (unless a tsconfig alias resolves them), slices are the folders the `slices` patterns select, and each source file is read with one `git show` call. Only uncompressed, single-page draw.io XML is supported, not `.drawio.png` or compressed drawings.
 
@@ -155,28 +134,7 @@ The slice approach is adapted from [human-review](https://github.com/victorrente
 
 ## TypeScript coverage collection
 
-The [coverage collector](coverage.md) provides explicit collection for supported `node:test` and Jest runs. `pi-verify review` imports default coverage automatically; pass its neutral JSON report to `verify_finish` or use `--coverage-report` for another location. Neither review nor `verify_finish` runs measurement automatically. For a monorepo, point `--root` to the frontend package and use paths relative to that package. Import validates the base, target, captured sources and recorded configuration against the committed comparison; stale or mismatched coverage is unavailable, not silently merged. The Jest adapter is validated with Jest 30, ts-jest and jsdom in a repository subdirectory, and a small Next.js Jest/TSX example; it has not been validated against every Next.js setup and may fail on unsupported or truncated Supercov output. Both evidence and source snapshots can contain sensitive data. TypeScript source, test diffs and coverage contexts use Shiki's github-light theme at report-generation time; the resulting report needs no network or highlighting runtime.
-
-## Verification tools
-
-- `verify_start({ goal })`: infer the source project from the session cwd and return acceptance criteria. Runs are isolated under `~/.pi/agent/audits/<project-key>/<unique-run>/`.
-- `verify_add_evidence({ criterion, type, command, summary? })`: execute in the source project and return the evidence ID, actual exit code, artifact path, and captured output (truncated at 16,000 characters). Read the full artifact when truncated. Match the criterion's required evidence type exactly.
-- `verify_attach({ path, type, label, description? })`: copy a screenshot, log, video, Playwright trace, or other file into the durable bundle with a checksum and size.
-- `verify_review({ criterion, evidence, verdict, notes })`: after inspecting output, record an explicit **self-review** (`supports`, `does-not-support`, or `unclear`). Command success alone does not prove a criterion.
-- `verify_finish({ changes?, tests?, skipped?, limitations? })`: collect Git source state and assemble JSON and Markdown automatically from acceptance criteria, evidence, reviews, and gate details. Supply only context; never manually overwrite the generated reports.
-
-The tool derives repository, branch, baseline, HEAD, tracked-file fingerprint, staged/unstaged/untracked files, and created commits. Any untracked file makes the custom verdict `NOT VERIFIED`, even if Agent Audits passed. `changes` entries contain file and summary. `tests` lists added/modified tests with name, file, behavior, outcome, and optional evidence IDs. Executed test commands are derived separately from captured `test` evidence; no individual test outcomes are inferred from a successful suite exit. Use `unknown` unless named runner output establishes the result.
-
-The JSON report retains exact commands, audit criteria, reviews, source metadata, and complete artifact data. Markdown is intentionally short: summary, changed files, added/changed tests, commits, evidence, and notes. It uses short, portable relative artifact links while JSON retains absolute paths, and formats commit timestamps as `YYYY-MM-DD HH:mm`. A failed gate still produces reports. Calling finish again regenerates reports using current reviews/evidence.
-
-### Current limitations
-
-- Commands are unrestricted and logs may contain sensitive data.
-- Reviews are self-reviews, not independent verification.
-- Test inventory and change summaries are agent-authored.
-- Baseline detection uses the oldest branch reflog entry when it records `branch: Created from ...`; this identifies where a worktree feature branch started. Initial repositories use Git's empty tree. Otherwise, a non-primary worktree uses its merge-base with the primary worktree branch. If none is reliable, the baseline stays unknown and the report says its commit list may be incomplete.
-- A tracked-file fingerprint is collected at finish time, but later report freshness is not automatically rechecked.
-- In-memory run state is not restored across reloads or sessions. Reload the extension (or restart Pi) after updating to expose `verify_review` and the new `/verify` prompt.
+The [coverage collector](coverage.md) provides explicit collection for supported `node:test` and Jest runs. `pi-verify review` imports default coverage automatically; use `--coverage-report` to select another location. Review does not run measurement automatically. For a monorepo, point `--root` to the frontend package and use paths relative to that package. Import validates the base, target, captured sources and recorded configuration against the committed comparison; stale or mismatched coverage is unavailable, not silently merged. The Jest adapter is validated with Jest 30, ts-jest and jsdom in a repository subdirectory, and a small Next.js Jest/TSX example; it has not been validated against every Next.js setup and may fail on unsupported or truncated Supercov output. Both evidence and source snapshots can contain sensitive data. TypeScript source, test diffs and coverage contexts use Shiki's github-light theme at report-generation time; the resulting report needs no network or highlighting runtime.
 
 ## Tests
 
@@ -187,4 +145,4 @@ npm install
 npm test
 ```
 
-The lifecycle integration test creates a separate disposable Node addition project and calls the registered tool handlers with its cwd against the real installed Agent Audits CLI. It checks missing reviews, successful reviews, rejected evidence, failed commands, and repeated report generation. This is a tool-handler integration test, not a live model-session test.
+Tests exercise the standalone report implementation and Inspector extension registration; they do not run a live model session.

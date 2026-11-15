@@ -45,7 +45,7 @@ export function architectureHtml(review: ArchitectureReview): string {
   const unused = review.guardrail.unused.length ? `<p class="model-note">Allowed but unused: ${esc(review.guardrail.unused.join(", "))}</p>` : "";
   const staged = (review.after?.slices ?? []).filter(slice => slice.placed === "auto").map(slice => slice.name);
   const awaiting = staged.length ? `<p class="model-note">Awaiting human placement: ${esc(staged.join(", "))}</p>` : "";
-  const edit = review.sourcePath ? `<p class="model-note"><a href="${esc(`vscode://file${encodeURI(review.sourcePath)}`)}">Open diagram in VS Code</a> · rearrange, then run <code>/verify approve</code></p>` : "";
+  const edit = review.sourcePath ? `<p class="model-note"><a href="${esc(`vscode://file${encodeURI(review.sourcePath)}`)}">Open diagram in VS Code</a> · rearrange, then run <code>npx pi-verify architecture --accept</code></p>` : "";
   const items = delta ? [...delta.removed.map(x => `− ${x}`), ...delta.changed.map(x => `~ ${x}`)] : [];
   const changes = delta ? (items.length ? `<ul>${items.map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : "") : "<p>Comparison unavailable: no verified base revision.</p>";
   return `<div class="panel model-panel"><div class="panel-head"><h2>Architecture</h2>${status === "passed" ? '<span class="status-dot" role="img" aria-label="Architecture guardrail passed" title="Architecture guardrail passed"></span>' : `<span class="badge warning">Guardrail ${esc(status)}</span>`}</div>${messages ? `<ul>${messages}</ul>` : ""}${unused}${awaiting}${edit}
