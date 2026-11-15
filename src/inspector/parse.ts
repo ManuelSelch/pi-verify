@@ -1,6 +1,6 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
-export type TestResult = { suite: string; name: string; status: 'passed' | 'failed' | 'skipped'; duration?: number; message?: string; file?: string };
+export type TestResult = { suite: string; name: string; status: 'passed' | 'failed' | 'skipped'; duration?: number; message?: string; file?: string; source?: string; highlightedLines?: string[] };
 export type CoverageFile = { path: string; lines: { line: number; hits: number }[]; functions?: { found: number; hit: number }; branches?: { found: number; hit: number }; source?: string; highlightedLines?: string[] };
 
 type XmlNode = Record<string, any>;

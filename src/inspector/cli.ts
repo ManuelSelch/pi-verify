@@ -21,13 +21,17 @@ async function main(args: string[]) {
   const root = await realpath(process.cwd());
   const tests = parseJUnit(await readFile(opts['--junit'], 'utf8'));
   const files = parseLcov(await readFile(opts['--lcov'], 'utf8'));
-  for (const file of files) {
+  for (const file of [...files, ...tests.map(test => ({ path: test.file, test }))]) {
+    if (!file.path) continue;
     try {
       const resolved = await realpath(path.resolve(root, file.path));
       const relative = path.relative(root, resolved);
       if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) continue;
-      file.source = await readFile(resolved, 'utf8');
-      if (/\.[cm]?[jt]sx?$/i.test(file.path)) file.highlightedLines = highlightLines(file.source, file.path);
+      const source = await readFile(resolved, 'utf8');
+      const highlightedLines = /\.[cm]?[jt]sx?$/i.test(file.path) ? highlightLines(source, file.path) : undefined;
+      const target = 'test' in file ? file.test : file;
+      target.source = source;
+      if (highlightedLines) target.highlightedLines = highlightedLines;
     } catch { /* Reports can refer to sources not present in this checkout. */ }
   }
   const assets = fileURLToPath(new URL('../../inspector-ui/', import.meta.url));

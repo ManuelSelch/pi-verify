@@ -13,7 +13,7 @@ test('generates a self-contained snapshot from reports without running tests', (
     mkdirSync(path.join(dir, 'src'));
     writeFileSync(path.join(dir, 'src/a.ts'), 'const value = "<img src=x onerror=alert(1)>";\r\n');
     writeFileSync(path.join(dir, 'src/other.py'), 'print("<unsafe>")\n');
-    writeFileSync(path.join(dir, 'junit.xml'), '<testsuite name="suite"><testcase name="&lt;/script&gt;"/></testsuite>');
+    writeFileSync(path.join(dir, 'junit.xml'), '<testsuite name="suite"><testcase name="&lt;/script&gt;" file="src/a.ts"/><testcase name="missing" file="missing.ts"/><testcase name="outside" file="../outside.ts"/></testsuite>');
     writeFileSync(path.join(dir, 'coverage.info'), 'SF:src/a.ts\nDA:1,1\nend_of_record\nSF:src/other.py\nDA:1,0\nend_of_record\n');
     execFileSync(process.execPath, [cli, '--junit', 'junit.xml', '--lcov', 'coverage.info', '--no-open'], { cwd: dir });
     const html = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
@@ -23,6 +23,10 @@ test('generates a self-contained snapshot from reports without running tests', (
     assert.match(data.files[0].highlightedLines[0], /<span style="color:/);
     assert.match(data.files[0].highlightedLines[0], /const/);
     assert.equal(data.files[0].lines[0].hits, 1);
+    assert.match(data.tests[0].source, /const value/);
+    assert.match(data.tests[0].highlightedLines[0], /&lt;img/);
+    assert.equal(data.tests[1].source, undefined);
+    assert.equal(data.tests[2].source, undefined);
     assert.match(data.files[0].highlightedLines[0], /&lt;img/);
     assert.doesNotMatch(data.files[0].highlightedLines[0], /<img/);
     assert.equal(data.files[1].highlightedLines, undefined);
