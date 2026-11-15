@@ -1,7 +1,7 @@
 import './style.css';
 
 type Test = { suite:string; name:string; status:string; duration?:number; message?:string; file?:string };
-type File = { path:string; lines:{line:number;hits:number}[]; source?:string; functions?:{found:number;hit:number}; branches?:{found:number;hit:number} };
+type File = { path:string; lines:{line:number;hits:number}[]; source?:string; highlightedLines?:string[]; functions?:{found:number;hit:number}; branches?:{found:number;hit:number} };
 const data = JSON.parse(document.querySelector('#inspector-data')!.textContent!) as {project:string; tests:Test[]; files:File[]};
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const escape = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
@@ -16,5 +16,5 @@ function render() {
   const input=app.querySelector<HTMLInputElement>('#filter'); if(input) input.oninput=()=>{const pos=input.selectionStart;filter=input.value;render();const next=app.querySelector<HTMLInputElement>('#filter')!;next.focus();next.setSelectionRange(pos,pos)};
 }
 function testDetail(t:Test) {return `<div class="label">TEST RESULT</div><h3>${escape(t.name)}</h3><p>${escape(t.suite)}${t.file?` / ${escape(t.file)}`:''}</p><div class="tag ${t.status}">${escape(t.status)}${t.duration!==undefined?` / ${t.duration}s`:''}</div>${t.message?`<pre>${escape(t.message)}</pre>`:''}<p>Test source location is not guaranteed by JUnit reports.</p>`;}
-function fileDetail(f:File) {const lines=new Map(f.lines.map(l=>[l.line,l.hits]));return `<div class="label">LINE COVERAGE</div><h3>${escape(f.path)}</h3><p>${coverage([f])} covered${f.branches?` / branches ${f.branches.hit}/${f.branches.found}`:''}${f.functions?` / functions ${f.functions.hit}/${f.functions.found}`:''}</p>${f.source===undefined?'<p>Source unavailable in the project snapshot.</p>':`<pre class="source">${f.source.split('\n').map((line,i)=>`<span class="source-line ${lines.has(i+1)?lines.get(i+1)!>0?'covered':'uncovered':''}"><i>${i+1}</i>${escape(line)}</span>`).join('')}</pre>`}`;}
+function fileDetail(f:File) {const lines=new Map(f.lines.map(l=>[l.line,l.hits]));return `<div class="label">LINE COVERAGE</div><h3>${escape(f.path)}</h3><p>${coverage([f])} covered${f.branches?` / branches ${f.branches.hit}/${f.branches.found}`:''}${f.functions?` / functions ${f.functions.hit}/${f.functions.found}`:''}</p>${f.source===undefined?'<p>Source unavailable in the project snapshot.</p>':`<pre class="source">${f.source.split(/\r\n|\r|\n/).map((line,i)=>`<span class="source-line ${lines.has(i+1)?lines.get(i+1)!>0?'covered':'uncovered':''}"><i>${i+1}</i>${f.highlightedLines?.[i] ?? escape(line)}</span>`).join('')}</pre>`}`;}
 render();

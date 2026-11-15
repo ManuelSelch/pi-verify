@@ -1,7 +1,7 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
 export type TestResult = { suite: string; name: string; status: 'passed' | 'failed' | 'skipped'; duration?: number; message?: string; file?: string };
-export type CoverageFile = { path: string; lines: { line: number; hits: number }[]; functions?: { found: number; hit: number }; branches?: { found: number; hit: number }; source?: string };
+export type CoverageFile = { path: string; lines: { line: number; hits: number }[]; functions?: { found: number; hit: number }; branches?: { found: number; hit: number }; source?: string; highlightedLines?: string[] };
 
 type XmlNode = Record<string, any>;
 const array = (value: any): XmlNode[] => value == null ? [] : Array.isArray(value) ? value : [value];

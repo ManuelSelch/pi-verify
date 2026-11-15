@@ -4,6 +4,7 @@ import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseJUnit, parseLcov } from './parse.js';
+import { highlightLines } from '../review-report/ui/highlight.js';
 
 const usage = 'Usage: inspector --junit FILE --lcov FILE [--output FILE] [--no-open]';
 async function main(args: string[]) {
@@ -26,6 +27,7 @@ async function main(args: string[]) {
       const relative = path.relative(root, resolved);
       if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) continue;
       file.source = await readFile(resolved, 'utf8');
+      if (/\.[cm]?[jt]sx?$/i.test(file.path)) file.highlightedLines = highlightLines(file.source, file.path);
     } catch { /* Reports can refer to sources not present in this checkout. */ }
   }
   const assets = fileURLToPath(new URL('../../inspector-ui/', import.meta.url));
