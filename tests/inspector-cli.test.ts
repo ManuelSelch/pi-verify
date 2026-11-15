@@ -28,6 +28,8 @@ test('generates a self-contained snapshot from reports without running tests', (
     assert.equal(data.files[1].highlightedLines, undefined);
     assert.match(html, /\\u003c\/script>/);
     assert.match(html, /inspector-data/);
+    assert.match(html, /aside\{[^}]*position:sticky/);
+    assert.match(html, /header\{[^}]*position:sticky/);
     assert.doesNotMatch(html, /<script src=/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
