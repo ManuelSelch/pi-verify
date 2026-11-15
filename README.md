@@ -4,7 +4,7 @@ Composable evidence collection and verification reports for Pi workflows, with a
 
 ## Inspector spike
 
-Install this checkout globally with `npm install --global .`, then run `inspector --junit junit.xml --lcov coverage/lcov.info` from any project. See the [spike guide](docs/inspector-spike.md) for options and limitations.
+Install this checkout globally with `npm install --global .`, then run `inspector` from a project to discover diagrams and available test and coverage reports. See the [spike guide](docs/inspector-spike.md) for options and limitations.
 
 ## Quick start
 

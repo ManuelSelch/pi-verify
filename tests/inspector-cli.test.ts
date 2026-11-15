@@ -44,8 +44,65 @@ test('generates a self-contained snapshot from reports without running tests', (
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('fails when a required report is missing', () => {
-  const result = spawnSync(process.execPath, [cli, '--no-open'], { encoding: 'utf8' });
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Usage: inspector/);
+test('generates a report without evidence and marks both sources unavailable', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'inspector-'));
+  try {
+    const result = spawnSync(process.execPath, [cli, '--no-open'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const html = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
+    const data = JSON.parse(html.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]);
+    assert.equal(data.reports.junit, null);
+    assert.equal(data.reports.lcov, null);
+    assert.deepEqual(data.tests, []);
+    assert.deepEqual(data.files, []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('discovers reports in priority order and allows independent overrides', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'inspector-'));
+  try {
+    mkdirSync(path.join(dir, 'test-results'));
+    mkdirSync(path.join(dir, 'coverage'));
+    writeFileSync(path.join(dir, 'junit.xml'), '<testsuite><testcase name="first"/></testsuite>');
+    writeFileSync(path.join(dir, 'test-results/junit.xml'), '<testsuite><testcase name="second"/></testsuite>');
+    writeFileSync(path.join(dir, 'coverage/lcov.info'), 'SF:a.ts\nDA:1,1\nend_of_record\n');
+    const stdout = execFileSync(process.execPath, [cli, '--no-open', '--junit', 'test-results/junit.xml'], { cwd: dir, encoding: 'utf8' });
+    const html = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
+    const data = JSON.parse(html.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]);
+    assert.equal(data.tests[0].name, 'second');
+    assert.equal(data.reports.lcov, 'coverage/lcov.info');
+    assert.match(stdout, /coverage\/lcov.info/);
+    execFileSync(process.execPath, [cli, '--no-open'], { cwd: dir });
+    const automatic = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
+    assert.equal(JSON.parse(automatic.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]).tests[0].name, 'first');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('discovers each supported report location independently', () => {
+  for (const [kind, locations, content] of [
+    ['junit', ['junit.xml', 'test-results/junit.xml', 'test-results.xml', 'reports/junit.xml'], '<testsuite><testcase name="works"/></testsuite>'],
+    ['lcov', ['coverage/lcov.info', 'lcov.info', 'coverage/lcov/lcov.info'], 'SF:a.ts\nDA:1,1\nend_of_record\n'],
+  ] as const) {
+    for (const location of locations) {
+      const dir = mkdtempSync(path.join(tmpdir(), 'inspector-'));
+      try {
+        mkdirSync(path.dirname(path.join(dir, location)), { recursive: true });
+        writeFileSync(path.join(dir, location), content);
+        execFileSync(process.execPath, [cli, '--no-open'], { cwd: dir });
+        const html = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
+        const data = JSON.parse(html.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]);
+        assert.equal(data.reports[kind], location);
+        assert.equal(data.reports[kind === 'junit' ? 'lcov' : 'junit'], null);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    }
+  }
+});
+
+test('fails for an explicitly missing or automatically invalid report', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'inspector-'));
+  try {
+    assert.notEqual(spawnSync(process.execPath, [cli, '--no-open', '--junit', 'missing.xml'], { cwd: dir }).status, 0);
+    writeFileSync(path.join(dir, 'junit.xml'), 'invalid');
+    assert.notEqual(spawnSync(process.execPath, [cli, '--no-open'], { cwd: dir }).status, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
