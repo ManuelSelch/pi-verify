@@ -1,7 +1,8 @@
 # Inspector spike
 
 - Install globally from this checkout: `npm install --global .` (run in the repository root). The Inspector spike is not yet published under a separate package name.
-- From a project directory, run `inspector` to generate a self-contained static HTML snapshot. It discovers Mermaid diagrams and existing test and coverage reports without running tests.
+- From a project directory, run `inspector` to generate and open a self-contained static HTML snapshot. It discovers Mermaid diagrams and existing test and coverage reports without running tests.
+- With the pi-verify Pi extension loaded, `/inspector` runs the bundled Inspector CLI in the session working directory and opens the report. It takes no arguments and requires the package build (`npm run build` for a local checkout).
 - The global npm bin directory must be on your `PATH`; check its location with `npm config get prefix`.
 - Add `--no-open` to skip opening the browser; `--output path/to/report.html` changes the output location. Paths resolve from the current project directory.
 - JUnit discovery checks `junit.xml`, `test-results/junit.xml`, `test-results.xml`, then `reports/junit.xml`; LCOV checks `coverage/lcov.info`, `lcov.info`, then `coverage/lcov/lcov.info`. The first existing file wins independently for each type; discovery is not recursive. The CLI prints the selected paths.
