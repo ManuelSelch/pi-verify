@@ -8,6 +8,12 @@ import { parseJUnit, parseLcov } from '../src/inspector/parse.js';
   assert.equal(result[1].message, 'oops\nstack');
 });
 
+test('reads test cases directly under testsuites', () => {
+  const result = parseJUnit('<testsuites><testcase name="works" file="tests/example.test.ts"/></testsuites>');
+
+  assert.deepEqual(result.map(t => [t.name, t.file]), [['works', 'tests/example.test.ts']]);
+});
+
 test('rejects invalid JUnit instead of reporting an empty suite', () => {
   assert.throws(() => parseJUnit('<unrelated/>'), /JUnit/);
 });

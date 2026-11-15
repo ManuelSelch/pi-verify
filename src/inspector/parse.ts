@@ -22,7 +22,7 @@ export function parseJUnit(xml: string): TestResult[] {
     for (const nested of array(suite.testsuite)) visit(nested, name);
   }
   if (root.testsuite) for (const suite of array(root.testsuite)) visit(suite);
-  if (root.testsuites) for (const suite of array(root.testsuites.testsuite)) visit(suite);
+  if (root.testsuites) visit(root.testsuites);
   return results;
 }
 
