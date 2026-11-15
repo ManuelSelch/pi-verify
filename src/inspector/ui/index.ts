@@ -1,4 +1,11 @@
 import './style.css';
+import folderIcon from '@tabler/icons/outline/folder.svg?raw';
+import fileIcon from '@tabler/icons/outline/file-code.svg?raw';
+import chevronDown from '@tabler/icons/outline/chevron-down.svg?raw';
+import chevronRight from '@tabler/icons/outline/chevron-right.svg?raw';
+import passedIcon from '@tabler/icons/outline/circle-check.svg?raw';
+import failedIcon from '@tabler/icons/outline/circle-x.svg?raw';
+import skippedIcon from '@tabler/icons/outline/circle-minus.svg?raw';
 import { buildCoverageTree, filterCoverageTree, type CoverageNode } from './tree.js';
 import { buildTestTree, filterTestTree, type TestNode } from './test-tree.js';
 
@@ -30,8 +37,8 @@ function treeRows(nodes: CoverageNode[], depth = 0): string {
     const open = Boolean(filter.trim()) || !collapsed.has(node.path);
     const percent = node.found ? `${(100 * node.hit / node.found).toFixed(1)}%` : '—';
     const indent = 12 + depth * 18;
-    const icon = folder ? (open ? '▾' : '▸') : ' ';
-    const symbol = folder ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h4M9 13l-2 2 2 2m6-4 2 2-2 2"/></svg>';
+    const icon = folder ? (open ? chevronDown : chevronRight) : '';
+    const symbol = folder ? folderIcon : fileIcon;
     const attr = folder ? `data-folder="${escape(node.path)}" aria-expanded="${open}"` : `data-file="${node.index}"`;
     const selected = !folder && node.index === selectedFile ? ' selected' : '';
     return `<button class="tree-row${selected}" style="padding-left:${indent}px" ${attr}><span class="tree-chevron">${icon}</span><span aria-hidden="true" class="tree-icon">${symbol}</span><span class="tree-name">${escape(node.name)}</span><span class="tree-percent">${percent}</span></button>${folder && open ? treeRows(node.children!, depth + 1) : ''}`;
@@ -41,9 +48,9 @@ function testTreeRows(nodes: TestNode[], depth = 0): string {
   return nodes.map(node => {
     const key = `${node.children ? 'folder' : 'file'}:${node.path}`;
     const open = Boolean(testFilter.trim()) || (node.failed !== toggledTests.has(key));
-    const symbol = node.children ? '▰' : '▤';
-    const rows = node.children ? testTreeRows(node.children, depth + 1) : node.tests!.map(index => { const t = data.tests[index]; return `<button class="tree-row${selectedTest === index ? ' selected' : ''}" style="padding-left:${30 + (depth + 1) * 18}px" data-test="${index}"><span class="${escape(t.status)}" aria-label="${escape(t.status)}">●</span><span class="tree-name">${escape(t.name)}</span></button>`; }).join('');
-    return `<button class="tree-row" style="padding-left:${12 + depth * 18}px" data-test-folder="${escape(key)}" aria-expanded="${open}"><span class="tree-chevron">${open ? '▾' : '▸'}</span><span class="tree-icon" aria-hidden="true">${symbol}</span><span class="tree-name">${escape(node.name)}</span>${node.tests ? `<span class="tree-percent">${node.tests.length}</span>` : ''}</button>${open ? rows : ''}`;
+    const symbol = node.children ? folderIcon : fileIcon;
+    const rows = node.children ? testTreeRows(node.children, depth + 1) : node.tests!.map(index => { const t = data.tests[index]; const statusIcon = t.status === 'passed' ? passedIcon : t.status === 'failed' ? failedIcon : skippedIcon; return `<button class="tree-row${selectedTest === index ? ' selected' : ''}" style="padding-left:${30 + (depth + 1) * 18}px" data-test="${index}"><span class="tree-status ${escape(t.status)}" aria-label="${escape(t.status)}">${statusIcon}</span><span class="tree-name">${escape(t.name)}</span></button>`; }).join('');
+    return `<button class="tree-row" style="padding-left:${12 + depth * 18}px" data-test-folder="${escape(key)}" aria-expanded="${open}"><span class="tree-chevron" aria-hidden="true">${open ? chevronDown : chevronRight}</span><span class="tree-icon" aria-hidden="true">${symbol}</span><span class="tree-name">${escape(node.name)}</span>${node.tests ? `<span class="tree-percent">${node.tests.length}</span>` : ''}</button>${open ? rows : ''}`;
   }).join('');
 }
 function testDetail(t:Test) {return `<div class="label">TEST RESULT</div><h3>${escape(t.name)}</h3><p>${escape(t.suite)}${t.file?` / ${escape(t.file)}`:''}</p><div class="tag ${escape(t.status)}">${escape(t.status)}${t.duration!==undefined?` / ${t.duration}s`:''}</div>${t.message?`<pre>${escape(t.message)}</pre>`:''}${t.source===undefined?'<p>Test source unavailable in the project snapshot.</p>':`<pre class="source">${t.source.split(/\r\n|\r|\n/).map((line,i)=>`<span class="source-line"><i>${i+1}</i>${t.highlightedLines?.[i] ?? escape(line)}</span>`).join('')}</pre>`}`;}
