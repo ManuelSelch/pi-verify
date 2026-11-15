@@ -8,5 +8,6 @@
 - Inspector does not run tests or generate coverage. Both input paths are required; invalid or missing reports fail the command.
 - The report shows JUnit test cases and their recorded results, durations and failures where provided. A report may represent only a subset of the suite. JUnit does not reliably identify exact source locations, so test source navigation is not implemented.
 - LCOV line coverage is shown per file with aggregate line coverage and function/branch counts when provided. Local source inside the project directory is embedded at generation time; missing or external files have no source view. JavaScript and TypeScript source is highlighted using Shiki; other languages are displayed as plain text. Generated HTML contains project source and report contents; share it only with trusted recipients.
-- This is a spike: no automatic report discovery, folder totals, architecture, docs or CRAP scores. Legacy pi-verify commands and Pi integration remain temporarily available and are not part of Inspector.
+- Coverage files are organized in an expandable, filterable folder tree. Folder percentages combine covered and executable lines across descendant files.
+- This is a spike: no automatic report discovery, architecture, docs or CRAP scores. Legacy pi-verify commands and Pi integration remain temporarily available and are not part of Inspector.
 - UI is built with Vite and TypeScript into bundled assets, then embedded into the standalone report by the CLI. The report needs no server or network connection.
