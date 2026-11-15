@@ -1,5 +1,17 @@
 # Inspector architecture
 
+## Report generation
+
+```mermaid
+flowchart LR
+  project["Project directory"] --> cli["Inspector CLI"]
+  junit["JUnit report"] --> cli
+  lcov["LCOV report"] --> cli
+  markdown["Markdown and Mermaid diagrams"] --> cli
+  cli --> snapshot["Standalone HTML snapshot"]
+  snapshot --> ui["Inspector UI"]
+```
+
 - [CLI](../src/inspector/cli.ts) collects JUnit/LCOV evidence, local source and diagram definitions into one JSON snapshot. The HTML embeds that snapshot and Vite's script/CSS; it never runs project tests.
 - [Diagram discovery](../src/inspector/diagrams/infra/discover.ts) enumerates project-local documents using Git (or filesystem traversal outside Git), excluding generated paths and symlinks. Read failures other than locally deleted files fail generation rather than silently omitting evidence.
 - [Markdown parsing](../src/inspector/diagrams/domain/parse.ts) uses a CommonMark syntax tree to identify Mermaid fences, heading titles and line numbers. Each block remains separate; invalid Mermaid is retained for a local rendering error. Markdown and diagram source are data, not executable HTML.
