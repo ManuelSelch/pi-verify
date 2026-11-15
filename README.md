@@ -4,7 +4,7 @@ Composable evidence collection and verification reports for Pi workflows, with a
 
 ## Inspector spike
 
-Generate an interactive static report from existing JUnit XML and LCOV files with `npx inspector --junit junit.xml --lcov coverage/lcov.info`. See the [spike guide](docs/inspector-spike.md) for options and limitations.
+Install this checkout globally with `npm install --global .`, then run `inspector --junit junit.xml --lcov coverage/lcov.info` from any project. See the [spike guide](docs/inspector-spike.md) for options and limitations.
 
 ## Quick start
 
