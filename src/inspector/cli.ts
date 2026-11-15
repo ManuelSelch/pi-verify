@@ -4,6 +4,7 @@ import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseJUnit, parseLcov } from './parse.js';
+import { discoverDiagrams } from './diagrams/infra/discover.js';
 import { highlightLines } from '../review-report/ui/highlight.js';
 
 const usage = 'Usage: inspector --junit FILE --lcov FILE [--output FILE] [--no-open]';
@@ -42,7 +43,8 @@ async function main(args: string[]) {
   }
   const assets = fileURLToPath(new URL('../../inspector-ui/', import.meta.url));
   const [script, css] = await Promise.all([readFile(path.join(assets, 'app.js'), 'utf8'), readFile(path.join(assets, 'app.css'), 'utf8')]);
-  const data = JSON.stringify({ project: path.basename(root), tests, files }).replace(/</g, '\\u003c');
+  const diagrams = await discoverDiagrams(root);
+  const data = JSON.stringify({ project: path.basename(root), tests, files, diagrams }).replace(/</g, '\\u003c');
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Inspector</title><style>${css.replace(/<\/style/gi, '<\\/style')}</style></head><body><div id="app"></div><script id="inspector-data" type="application/json">${data}</script><script>${script.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
   const output = path.resolve(opts['--output'] ?? 'inspector-report.html');
   await mkdir(path.dirname(output), { recursive: true });

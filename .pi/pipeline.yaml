@@ -1,0 +1,6 @@
+suites:
+  test:
+    command: [npm, test]
+    cwd: .
+    timeoutSeconds: 300
+    auto: manual

@@ -18,7 +18,8 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && vite build --config inspector.vite.config.mjs",
     "prepack": "npm run build",
-    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/coverage/infra/*.test.js",
+    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/coverage/infra/*.test.js dist/tests/inspector/diagrams/domain/*.test.js dist/tests/inspector/diagrams/infra/*.test.js dist/tests/inspector/diagrams/ui/*.test.js",
+    "test:browser": "npm run build && node --test dist/tests/inspector/diagrams/browser/*.test.js",
     "check": "npm run build && npm test",
     "review": "npm run build && node scripts/review.mjs"
   },
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "playwright": "1.58.2",
     "vite": "^6.3.5"
   },
   "keywords": [
@@ -64,6 +66,8 @@
   "dependencies": {
     "@tabler/icons": "^3.52.0",
     "fast-xml-parser": "^5.11.2",
+    "mdast-util-from-markdown": "2.0.2",
+    "mermaid": "11.17.2",
     "shiki": "4.6.0",
     "typescript": "^5.9.3"
   },
