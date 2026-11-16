@@ -14,6 +14,19 @@ test('reads test cases directly under testsuites', () => {
   assert.deepEqual(result.map(t => [t.name, t.file]), [['works', 'tests/example.test.ts']]);
 });
 
+test('normalizes path-like classnames without treating Java classnames as file paths', () => {
+  const result = parseJUnit('<testsuites><testsuite name="suite"><testcase name="browser" classname="tests/example.spec.ts"/><testcase name="java" classname="com.example.Tests"/><testcase name="explicit" file="real.ts" classname="other.spec.ts" line="12" column="3"/></testsuite></testsuites>');
+
+  assert.deepEqual(result.map(t => t.file), ['tests/example.spec.ts', undefined, 'real.ts']);
+  assert.equal(result[2].line, 12);
+  assert.equal(result[2].column, 3);
+});
+
+test('accepts explicitly empty JUnit suites', () => {
+  assert.deepEqual(parseJUnit('<testsuites/>'), []);
+  assert.deepEqual(parseJUnit('<testsuite name="empty"/>'), []);
+});
+
 test('rejects invalid JUnit instead of reporting an empty suite', () => {
   assert.throws(() => parseJUnit('<unrelated/>'), /JUnit/);
 });

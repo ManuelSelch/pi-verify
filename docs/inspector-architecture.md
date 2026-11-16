@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
   project["Project directory"] --> cli["Inspector CLI"]
-  junit["JUnit report"] --> cli
+  junit["JUnit reports"] --> cli
   lcov["LCOV report"] --> cli
   markdown["Markdown and Mermaid diagrams"] --> cli
   cli --> snapshot["Standalone HTML snapshot"]
@@ -13,6 +13,8 @@ flowchart LR
 ```
 
 - [CLI](../src/inspector/cli.ts) collects JUnit/LCOV evidence, local source and diagram definitions into one JSON snapshot. The HTML embeds that snapshot and Vite's script/CSS; it never runs project tests.
+- [JUnit import](../src/inspector/reports/infra/import.ts) imports all default candidates or repeated explicit paths independently. Canonical paths are deduplicated, never test names. Each test retains its report path; each report retains its own test-case outcome totals. Any selected report read/parse error aborts generation with path context. No discovered reports means unavailable evidence, not a passing run.
+- [JUnit parsing](../src/inspector/parse.ts) normalizes explicit file/line/column attributes and Playwright’s filename `classname`. Missing exact locations stay unknown. Existing project-boundary checks still prevent embedding external source.
 - [Diagram discovery](../src/inspector/diagrams/infra/discover.ts) enumerates project-local documents using Git (or filesystem traversal outside Git), excluding generated paths and symlinks. Read failures other than locally deleted files fail generation rather than silently omitting evidence.
 - [Markdown parsing](../src/inspector/diagrams/domain/parse.ts) uses a CommonMark syntax tree to identify Mermaid fences, heading titles and line numbers. Each block remains separate; invalid Mermaid is retained for a local rendering error. Markdown and diagram source are data, not executable HTML.
 - [Inspector UI](../src/inspector/ui/index.ts) retains navigation state. Pure [diagram markup](../src/inspector/diagrams/ui/components/html.ts) receives snapshot values; the [container](../src/inspector/diagrams/ui/container.ts) owns Mermaid rendering, resize observers and dialog lifetime.

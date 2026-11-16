@@ -3,11 +3,12 @@ import { execFile } from 'node:child_process';
 import { access, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseJUnit, parseLcov } from './parse.js';
+import { parseLcov } from './parse.js';
+import { importJUnit } from './reports/infra/import.js';
 import { discoverDiagrams } from './diagrams/infra/discover.js';
 import { highlightLines } from '../review-report/ui/highlight.js';
 
-const usage = 'Usage: inspector [--junit FILE] [--lcov FILE] [--output FILE] [--no-open]';
+const usage = 'Usage: inspector [--junit FILE]... [--lcov FILE] [--output FILE] [--no-open]';
 
 async function discoverReport(candidates: string[]): Promise<string | null> {
   for (const candidate of candidates) {
@@ -19,19 +20,21 @@ async function discoverReport(candidates: string[]): Promise<string | null> {
 async function main(args: string[]) {
   if (args.includes('--help')) { console.log(usage); return; }
   const opts: Record<string, string> = {};
+  const junitPaths: string[] = [];
   let open = true;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--no-open') { open = false; continue; }
     if (!['--junit', '--lcov', '--output'].includes(arg) || opts[arg] || !args[i + 1] || args[i + 1].startsWith('--')) throw new Error(usage);
-    opts[arg] = args[++i];
+    const value = args[++i];
+    if (arg === '--junit') junitPaths.push(value);
+    else opts[arg] = value;
   }
   const root = await realpath(process.cwd());
-  const junit = opts['--junit'] ?? await discoverReport(['junit.xml', 'test-results/junit.xml', 'test-results.xml', 'reports/junit.xml']);
+  const { reports: junit, tests } = await importJUnit(junitPaths);
   const lcov = opts['--lcov'] ?? await discoverReport(['coverage/lcov.info', 'lcov.info', 'coverage/lcov/lcov.info']);
-  console.log(`JUnit: ${junit ?? 'unavailable'}`);
+  console.log(`JUnit: ${junit.length ? junit.map(report => `${report.path} (${report.totals.tests} tests, ${report.totals.failed} failed, ${report.totals.skipped} skipped)`).join('\nJUnit: ') : 'unavailable'}`);
   console.log(`LCOV: ${lcov ?? 'unavailable'}`);
-  const tests = junit ? parseJUnit(await readFile(junit, 'utf8')) : [];
   for (const test of tests) {
     if (!test.file || !path.isAbsolute(test.file)) continue;
     const relative = path.relative(root, test.file);

@@ -51,14 +51,14 @@ test('generates a report without evidence and marks both sources unavailable', (
     assert.equal(result.status, 0, result.stderr);
     const html = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
     const data = JSON.parse(html.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]);
-    assert.equal(data.reports.junit, null);
+    assert.deepEqual(data.reports.junit, []);
     assert.equal(data.reports.lcov, null);
     assert.deepEqual(data.tests, []);
     assert.deepEqual(data.files, []);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('discovers reports in priority order and allows independent overrides', () => {
+test('discovers all JUnit reports and allows independent overrides', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'inspector-'));
   try {
     mkdirSync(path.join(dir, 'test-results'));
@@ -74,7 +74,7 @@ test('discovers reports in priority order and allows independent overrides', () 
     assert.match(stdout, /coverage\/lcov.info/);
     execFileSync(process.execPath, [cli, '--no-open'], { cwd: dir });
     const automatic = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
-    assert.equal(JSON.parse(automatic.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]).tests[0].name, 'first');
+    assert.deepEqual(JSON.parse(automatic.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]).tests.map((test: { name: string }) => test.name), ['first', 'second']);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -91,8 +91,9 @@ test('discovers each supported report location independently', () => {
         execFileSync(process.execPath, [cli, '--no-open'], { cwd: dir });
         const html = readFileSync(path.join(dir, 'inspector-report.html'), 'utf8');
         const data = JSON.parse(html.match(/<script id="inspector-data" type="application\/json">(.*?)<\/script>/s)![1]);
-        assert.equal(data.reports[kind], location);
-        assert.equal(data.reports[kind === 'junit' ? 'lcov' : 'junit'], null);
+        assert.equal(kind === 'junit' ? data.reports.junit[0].path : data.reports.lcov, location);
+        if (kind === 'junit') assert.equal(data.reports.lcov, null);
+        else assert.deepEqual(data.reports.junit, []);
       } finally { rmSync(dir, { recursive: true, force: true }); }
     }
   }

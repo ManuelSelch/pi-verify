@@ -1,6 +1,6 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 
-export type TestResult = { suite: string; name: string; status: 'passed' | 'failed' | 'skipped'; duration?: number; message?: string; file?: string; source?: string; highlightedLines?: string[] };
+export type TestResult = { suite: string; name: string; status: 'passed' | 'failed' | 'skipped'; duration?: number; message?: string; file?: string; line?: number; column?: number; source?: string; highlightedLines?: string[] };
 export type CoverageFile = { path: string; lines: { line: number; hits: number }[]; functions?: { found: number; hit: number }; branches?: { found: number; hit: number }; source?: string; highlightedLines?: string[] };
 
 type XmlNode = Record<string, any>;
@@ -8,7 +8,7 @@ const array = (value: any): XmlNode[] => value == null ? [] : Array.isArray(valu
 export function parseJUnit(xml: string): TestResult[] {
   if (XMLValidator.validate(xml) !== true) throw new Error('Invalid JUnit XML');
   const root = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseAttributeValue: false }).parse(xml);
-  if (!root || (!root.testsuites && !root.testsuite)) throw new Error('Invalid JUnit XML: missing testsuites or testsuite');
+  if (!root || (!Object.hasOwn(root, 'testsuites') && !Object.hasOwn(root, 'testsuite'))) throw new Error('Invalid JUnit XML: missing testsuites or testsuite');
   const results: TestResult[] = [];
   function visit(suite: XmlNode, parent = '') {
     const name = String(suite['@_name'] ?? parent);
@@ -17,7 +17,11 @@ export function parseJUnit(xml: string): TestResult[] {
       const detail = Array.isArray(failure) ? failure[0] : failure;
       const message = detail == null ? undefined : typeof detail === 'object' ? [detail['@_message'], detail['#text']].filter(Boolean).join('\n') : String(detail);
       const duration = Number(item['@_time']);
-      results.push({ suite: name, name: String(item['@_name'] ?? '(unnamed test)'), status: failure !== undefined ? 'failed' : item.skipped !== undefined ? 'skipped' : 'passed', ...(Number.isFinite(duration) && item['@_time'] !== undefined ? { duration } : {}), ...(message ? { message } : {}), ...(item['@_file'] || suite['@_file'] ? { file: String(item['@_file'] ?? suite['@_file']) } : {}) });
+      // Playwright puts the file path in classname; Java-style class names are not paths.
+      const classname = String(item['@_classname'] ?? '');
+      const file = item['@_file'] ?? suite['@_file'] ?? (/\.(?:[cm]?[jt]sx?|py|java|cs|rb|go|rs)$/i.test(classname) ? classname : undefined);
+      const location = (key: string) => /^[1-9]\d*$/.test(String(item[`@_${key}`] ?? '')) ? Number(item[`@_${key}`]) : undefined;
+      results.push({ suite: name, name: String(item['@_name'] ?? '(unnamed test)'), status: failure !== undefined ? 'failed' : item.skipped !== undefined ? 'skipped' : 'passed', ...(Number.isFinite(duration) && item['@_time'] !== undefined ? { duration } : {}), ...(message ? { message } : {}), ...(file ? { file: String(file) } : {}), ...(location('line') ? { line: location('line') } : {}), ...(location('column') ? { column: location('column') } : {}) });
     }
     for (const nested of array(suite.testsuite)) visit(nested, name);
   }
