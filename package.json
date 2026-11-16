@@ -18,7 +18,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && vite build --config inspector.vite.config.mjs",
     "prepack": "npm run build",
-    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/coverage/infra/*.test.js dist/tests/inspector/diagrams/domain/*.test.js dist/tests/inspector/diagrams/infra/*.test.js dist/tests/inspector/diagrams/ui/*.test.js",
+    "test": "npm run build && node --enable-source-maps --experimental-test-coverage --test-coverage-include=\"**/src/**\" --test-coverage-exclude=\"**/node_modules/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=junit.xml --test-reporter=lcov --test-reporter-destination=lcov.info --test dist/tests/*.test.js dist/tests/coverage/infra/*.test.js dist/tests/inspector/diagrams/domain/*.test.js dist/tests/inspector/diagrams/infra/*.test.js dist/tests/inspector/diagrams/ui/*.test.js",
     "test:browser": "npm run build && node --test dist/tests/inspector/diagrams/browser/*.test.js",
     "check": "npm run build && npm test",
     "review": "npm run build && node scripts/review.mjs"
